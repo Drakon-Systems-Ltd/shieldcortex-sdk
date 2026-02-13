@@ -42,7 +42,7 @@ if (!result.allowed) {
 
 #### `scan(input): Promise<ScanResult>`
 
-Scan a single piece of content through the 5-layer defence pipeline.
+Scan a single piece of content through the 6-layer defence pipeline.
 
 ```typescript
 const result = await sc.scan({

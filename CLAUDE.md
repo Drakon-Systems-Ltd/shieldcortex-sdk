@@ -30,7 +30,7 @@ if (!result.allowed) {
 
 | Method | Purpose |
 |--------|---------|
-| `scan(input)` | Scan single content through 5-layer defence pipeline |
+| `scan(input)` | Scan single content through 6-layer defence pipeline |
 | `scanBatch(items, opts?)` | Scan up to 100 items in one request |
 | `getAuditLogs(query?)` | Query audit trail with filters and pagination |
 | `getAuditStats(timeRange?)` | Get summary stats (`'24h'`, `'7d'`, `'30d'`) |
