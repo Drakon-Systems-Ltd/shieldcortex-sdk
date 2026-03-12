@@ -1,17 +1,17 @@
-# @shieldcortex/sdk
+# shieldcortex-sdk
 
 Official TypeScript SDK for the [ShieldCortex](https://shieldcortex.ai) API. Scan AI agent memory and inputs for prompt injection, credential leaks, and other threats.
 
 ## Install
 
 ```bash
-npm install @shieldcortex/sdk
+npm install shieldcortex-sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { ShieldCortex } from '@shieldcortex/sdk';
+import { ShieldCortex } from 'shieldcortex-sdk';
 
 const sc = new ShieldCortex({ apiKey: 'sc_live_...' });
 
@@ -137,7 +137,7 @@ await sc.reviewQuarantine(43, 'reject');
 The SDK throws typed errors you can catch:
 
 ```typescript
-import { ShieldCortex, AuthError, RateLimitError, ValidationError } from '@shieldcortex/sdk';
+import { ShieldCortex, AuthError, RateLimitError, ValidationError } from 'shieldcortex-sdk';
 
 try {
   await sc.scan({ content: 'test' });

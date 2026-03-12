@@ -1,5 +1,5 @@
 {
-  "name": "@shieldcortex/sdk",
+  "name": "shieldcortex-sdk",
   "version": "0.1.0",
   "description": "Official TypeScript SDK for the ShieldCortex API",
   "type": "module",

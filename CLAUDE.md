@@ -1,4 +1,4 @@
-# @shieldcortex/sdk
+# shieldcortex-sdk
 
 TypeScript SDK for the ShieldCortex API — AI memory security scanning.
 
@@ -9,13 +9,13 @@ This is a lightweight HTTP client that wraps the ShieldCortex SaaS API. It lets 
 ## Installation
 
 ```bash
-npm install @shieldcortex/sdk
+npm install shieldcortex-sdk
 ```
 
 ## Quick Integration
 
 ```typescript
-import { ShieldCortex } from '@shieldcortex/sdk';
+import { ShieldCortex } from 'shieldcortex-sdk';
 
 const sc = new ShieldCortex({ apiKey: process.env.SHIELDCORTEX_API_KEY! });
 
