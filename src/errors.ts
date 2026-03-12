@@ -33,3 +33,17 @@ export class ValidationError extends ShieldCortexError {
     this.name = 'ValidationError';
   }
 }
+
+export class ForbiddenError extends ShieldCortexError {
+  constructor(body: string) {
+    super('Forbidden — insufficient permissions or plan', 403, body);
+    this.name = 'ForbiddenError';
+  }
+}
+
+export class NotFoundError extends ShieldCortexError {
+  constructor(body: string) {
+    super('Resource not found', 404, body);
+    this.name = 'NotFoundError';
+  }
+}
