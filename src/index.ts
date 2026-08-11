@@ -54,6 +54,12 @@ import type {
   IronDomePolicy,
   IronDomePoliciesResponse,
   PolicySyncResponse,
+  VerificationSubmitInput,
+  VerificationSubmitResult,
+  VerificationsQuery,
+  VerificationsResponse,
+  VerificationStats,
+  VerificationDetail,
 } from './types.js';
 import { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError } from './errors.js';
 
@@ -396,6 +402,28 @@ export class ShieldCortex {
     await this.del(`/v1/iron-dome/policies/${id}`);
   }
 
+  // --- Verification (Enterprise) ---
+
+  async submitVerification(input: VerificationSubmitInput): Promise<VerificationSubmitResult> {
+    return this.post<VerificationSubmitResult>('/v1/verify', input);
+  }
+
+  async listVerifications(query?: VerificationsQuery): Promise<VerificationsResponse> {
+    return this.get<VerificationsResponse>('/v1/verify', query);
+  }
+
+  async getVerificationStats(): Promise<VerificationStats> {
+    return this.get<VerificationStats>('/v1/verify/stats');
+  }
+
+  async getVerification(id: number): Promise<VerificationDetail> {
+    return this.get<VerificationDetail>(`/v1/verify/${id}`);
+  }
+
+  async deleteVerification(id: number): Promise<void> {
+    await this.del(`/v1/verify/${id}`);
+  }
+
   // --- Internal HTTP ---
 
   private buildQuery(params?: Record<string, unknown> | object): string {
@@ -530,5 +558,13 @@ export type {
   IronDomePolicy,
   IronDomePoliciesResponse,
   PolicySyncResponse,
+  VerificationThreat,
+  VerificationSubmitInput,
+  VerificationSubmitResult,
+  VerificationsQuery,
+  VerificationListItem,
+  VerificationsResponse,
+  VerificationStats,
+  VerificationDetail,
 } from './types.js';
 export { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError } from './errors.js';

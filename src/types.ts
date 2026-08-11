@@ -648,6 +648,119 @@ export interface PolicySyncResponse {
   updated_at: string | null;
 }
 
+// --- Verification (Enterprise) ---
+
+export interface VerificationThreat {
+  type: string;
+  description: string;
+  severity: string;
+}
+
+export interface VerificationSubmitInput {
+  /** 1–50000 characters. */
+  content: string;
+  title?: string;
+  source_type: string;
+  source_identifier: string;
+  anomaly_score: number;
+  trust_score?: number;
+  threat_indicators?: string[];
+  pipeline_result: 'ALLOW' | 'BLOCK' | 'QUARANTINE';
+  device_id?: string;
+  device_name?: string;
+  /** "async" is not implemented server-side (501); default "sync". */
+  mode?: 'sync' | 'async';
+}
+
+/**
+ * Synchronous POST /v1/verify result (200, not 201). Optional keys are
+ * OMITTED from the JSON when the service leaves them undefined — never null.
+ */
+export interface VerificationSubmitResult {
+  id: number;
+  verdict?: 'SAFE' | 'SUSPICIOUS' | 'THREAT';
+  confidence?: number;
+  threats_detected: VerificationThreat[];
+  action?: 'ALERT' | 'NONE';
+  cached: boolean;
+  duration_ms?: number;
+  status: string;
+}
+
+export interface VerificationsQuery {
+  from?: string;
+  to?: string;
+  status?: 'pending' | 'completed' | 'failed' | 'cached';
+  verdict?: 'SAFE' | 'SUSPICIOUS' | 'THREAT';
+  source?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/** List rows expose the duration as `duration_ms`; the detail uses `total_duration_ms`. */
+export interface VerificationListItem {
+  id: number;
+  title: string | null;
+  source_type: string;
+  source_identifier: string;
+  pipeline_result: string;
+  anomaly_score: number;
+  trust_score: number | null;
+  verdict: string | null;
+  confidence: number | null;
+  action: string | null;
+  status: string;
+  threats_detected: VerificationThreat[] | null;
+  duration_ms: number | null;
+  cost_usd: number | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface VerificationsResponse {
+  verifications: VerificationListItem[];
+  total: number;
+  pagination: Pagination;
+}
+
+export interface VerificationStats {
+  today: {
+    total: number;
+    safe: number;
+    suspicious: number;
+    threat: number;
+    error: number;
+    cost_usd: number;
+  };
+  quota: { used: number; limit: number };
+}
+
+export interface VerificationDetail {
+  id: number;
+  title: string | null;
+  source_type: string;
+  source_identifier: string;
+  pipeline_result: string;
+  anomaly_score: number;
+  trust_score: number | null;
+  threat_indicators: string[] | null;
+  verdict: string | null;
+  confidence: number | null;
+  reasoning: string | null;
+  threats_detected: VerificationThreat[] | null;
+  model_used: string | null;
+  action: string | null;
+  status: string;
+  llm_duration_ms: number | null;
+  total_duration_ms: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cost_usd: number | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
 // --- Client options ---
 
 export interface ShieldCortexOptions {
