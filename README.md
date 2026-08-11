@@ -132,6 +132,60 @@ await sc.reviewQuarantine(42, 'approve');
 await sc.reviewQuarantine(43, 'reject');
 ```
 
+## API Coverage
+
+The client covers the full ShieldCortex v1 API surface. Beyond the methods
+documented above, the following groups are available — every method is typed
+and follows the same pattern (`get*`/`list*` for reads, `create*`/`update*`/
+`delete*` for writes):
+
+| Group | Methods |
+|-------|---------|
+| Scanning | `scan`, `scanBatch`, `scanSkill` |
+| Audit | `getAuditLogs`, `getAuditEntry`, `getAuditStats`, `getAuditTrends`, `ingestAuditEvents` |
+| Audit export | `exportAuditLogs` (file download + integrity headers), `listAuditExports`, `getAuditExportManifest`, `verifyAuditExport`, `listAuditExportVerifications` |
+| Iron Dome analytics | `getIronDomeStats`, `getIronDomeEvents` |
+| Quarantine | `getQuarantine`, `reviewQuarantine` |
+| API keys | `createApiKey`, `listApiKeys`, `revokeApiKey` |
+| Teams and invites | `getTeam`, `updateTeam`, `getTeamMembers`, `getUsage`, `createInvite`, `listInvites`, `deleteInvite`, `resendInvite` |
+| Devices | `getDevices`, `registerDevice`, `updateDevice`, `deviceHeartbeat` |
+| Alerts and webhooks | `getAlerts`, `createAlert`, `updateAlert`, `deleteAlert`, `getWebhooks`, `createWebhook`, `updateWebhook`, `deleteWebhook`, `testWebhook`, `getWebhookDeliveries` |
+| Firewall rules | `getFirewallRules`, `getActiveFirewallRules`, `createFirewallRule`, `updateFirewallRule`, `deleteFirewallRule` |
+| Iron Dome patterns and policies | `getInjectionPatterns`, `getInjectionPatternsSync`, `createInjectionPattern`, `updateInjectionPattern`, `testInjectionPattern`, `deleteInjectionPattern`, `getIronDomePolicies`, `getIronDomePolicySync`, `createIronDomePolicy`, `updateIronDomePolicy`, `setDefaultIronDomePolicy`, `deleteIronDomePolicy` |
+| Verification (Enterprise) | `submitVerification`, `listVerifications`, `getVerificationStats`, `getVerification`, `deleteVerification` |
+| Skills | `ingestSkillScans`, `listSkillScans` |
+| Threats / incidents / recall | `reportThreat` (compat shim), `replayIncidents`, `explainRecall` |
+| Memory sync | `getSyncHealth`, `pushMemories`, `listSyncedMemories`, `pushMemoryGraph` |
+| Licence | `getLicense`, `regenerateLicense` |
+| Billing (deprecated) | `createCheckoutSession`, `createPortalSession` — self-serve plans were retired in July 2026 (Free + Enterprise model); these remain only for grandfathered licence holders |
+
+### Deliberately deferred
+
+The audit verification-export download sub-chain
+(`GET /v1/audit/exports/{manifestId}/verifications/export` and the
+`verification-exports` list/detail/download endpoints) is CLI tooling and is
+deliberately not covered.
+
+### Out of scope
+
+- `platform/*` endpoints (internal)
+- `auth/*` magic-link flows (dashboard sessions, not API keys)
+- the retired ShieldCustomiser endpoints
+
+### Cross-SDK policy notes
+
+The TypeScript and Python SDKs stay in lockstep on the endpoint surface
+(guarded by a shared parity manifest in `tests/endpoint-manifest.ts`), with
+two deliberate differences:
+
+1. Delete methods return `void` here; the Python SDK returns the typed
+   response body where the server sends one. Per-language internal
+   consistency was chosen over cross-SDK identity.
+2. Both SDKs return `{ content, headers }` from the audit export download —
+   the raw file body plus the parsed `X-ShieldCortex-Export-*` integrity
+   headers. Absent `sha256`/`signature` headers surface as `undefined`,
+   meaning the export cannot be verified.
+
 ## Error Handling
 
 The SDK throws typed errors you can catch:

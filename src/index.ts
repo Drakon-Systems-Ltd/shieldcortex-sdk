@@ -244,10 +244,18 @@ export class ShieldCortex {
 
   // --- Billing ---
 
+  /**
+   * @deprecated Self-serve plans retired 2026-07 (Free + Enterprise model);
+   * retained for grandfathered licence holders.
+   */
   async createCheckoutSession(): Promise<CheckoutResponse> {
     return this.post<CheckoutResponse>('/v1/billing/checkout', {});
   }
 
+  /**
+   * @deprecated Self-serve plans retired 2026-07 (Free + Enterprise model);
+   * retained for grandfathered licence holders.
+   */
   async createPortalSession(): Promise<PortalResponse> {
     return this.post<PortalResponse>('/v1/billing/portal', {});
   }
