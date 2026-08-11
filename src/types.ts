@@ -169,6 +169,12 @@ export interface AuditStats {
   threatBreakdown: Record<string, number>;
 }
 
+/** Shared limit/offset page query for list endpoints. */
+export interface PageQuery {
+  limit?: number;
+  offset?: number;
+}
+
 /** Shared list-envelope pagination. `hasMore` is camelCase on the wire. */
 export interface Pagination {
   limit: number;
@@ -213,13 +219,22 @@ export interface AuditExportQuery {
   search?: string;
 }
 
-/** Parsed X-ShieldCortex-Export-* integrity headers. */
+/**
+ * Parsed X-ShieldCortex-Export-* integrity headers.
+ *
+ * `sha256` and `signature` are load-bearing: when the header is absent the
+ * field is `undefined` (never ''), meaning the export CANNOT be verified —
+ * treat it as unverifiable rather than comparing against an empty string.
+ */
 export interface AuditExportHeaders {
-  sha256: string;
-  count: number;
+  /** Hex SHA-256 of the exact body. `undefined` when the header is absent — export is unverifiable. */
+  sha256: string | undefined;
+  /** Entry count. `undefined` when the header is absent or non-numeric. */
+  count: number | undefined;
   generatedAt: string;
   manifestId: string;
-  signature: string;
+  /** HMAC-SHA256 hex signature. `undefined` when the header is absent — export is unverifiable. */
+  signature: string | undefined;
   signatureAlgorithm: string;
   manifestPersisted: boolean;
 }

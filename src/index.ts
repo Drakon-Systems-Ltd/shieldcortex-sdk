@@ -27,6 +27,7 @@ import type {
   VerifyAuditExportInput,
   VerifyAuditExportResponse,
   AuditExportVerificationsResponse,
+  PageQuery,
   QuarantineQuery,
   QuarantineResponse,
   CreateKeyInput,
@@ -132,14 +133,17 @@ export class ShieldCortex {
   async exportAuditLogs(query?: AuditExportQuery): Promise<AuditExportResult> {
     const params = { ...query, format: query?.format ?? 'json' };
     const res = await this.requestRaw(`/v1/audit/export${this.buildQuery(params)}`);
+    const countHeader = res.headers.get('X-ShieldCortex-Export-Count');
+    const count = countHeader === null ? undefined : Number(countHeader);
     return {
       content: await res.text(),
       headers: {
-        sha256: res.headers.get('X-ShieldCortex-Export-SHA256') ?? '',
-        count: Number(res.headers.get('X-ShieldCortex-Export-Count') ?? 0),
+        // Absent integrity headers stay undefined (never '') — the export is unverifiable.
+        sha256: res.headers.get('X-ShieldCortex-Export-SHA256') ?? undefined,
+        count: count !== undefined && Number.isNaN(count) ? undefined : count,
         generatedAt: res.headers.get('X-ShieldCortex-Export-Generated-At') ?? '',
         manifestId: res.headers.get('X-ShieldCortex-Export-Manifest-Id') ?? '',
-        signature: res.headers.get('X-ShieldCortex-Export-Signature') ?? '',
+        signature: res.headers.get('X-ShieldCortex-Export-Signature') ?? undefined,
         signatureAlgorithm: res.headers.get('X-ShieldCortex-Export-Signature-Alg') ?? '',
         manifestPersisted: res.headers.get('X-ShieldCortex-Export-Manifest-Persisted') === '1',
       },
@@ -172,7 +176,7 @@ export class ShieldCortex {
 
   async listAuditExportVerifications(
     manifestId: string,
-    query?: { limit?: number; offset?: number }
+    query?: PageQuery
   ): Promise<AuditExportVerificationsResponse> {
     return this.get<AuditExportVerificationsResponse>(`/v1/audit/exports/${manifestId}/verifications`, query);
   }
@@ -457,7 +461,8 @@ export class ShieldCortex {
   /**
    * Compat shim for the OpenClaw realtime plugin — accepts a single event,
    * an array of events, or an `{ events: [...] }` wrapper, passed through
-   * verbatim. Prefer ingestAuditEvents() for canonical audit entries.
+   * verbatim. Max 100 events per call — the server silently truncates any
+   * extras. Prefer ingestAuditEvents() for canonical audit entries.
    */
   async reportThreat(events: Record<string, unknown> | Array<Record<string, unknown>>): Promise<ThreatIngestResponse> {
     return this.post<ThreatIngestResponse>('/v1/threats', events);
@@ -569,112 +574,6 @@ export class ShieldCortex {
   }
 }
 
-// Re-export types and errors
-export type {
-  ShieldCortexOptions,
-  ScanInput,
-  ScanResult,
-  BatchItem,
-  BatchOptions,
-  BatchResult,
-  SkillScanResult,
-  SkillThreat,
-  AuditQuery,
-  AuditEntry,
-  AuditLogEntry,
-  AuditResponse,
-  AuditStats,
-  Pagination,
-  AuditTrendsQuery,
-  AuditTrendBucket,
-  AuditTrendsResponse,
-  AuditExportQuery,
-  AuditExportHeaders,
-  AuditExportResult,
-  AuditIngestEntry,
-  IngestResponse,
-  IronDomeStatsQuery,
-  IronDomeStats,
-  IronDomeEventsQuery,
-  IronDomeEvent,
-  IronDomeEventsResponse,
-  AuditExportManifest,
-  AuditExportsQuery,
-  AuditExportsResponse,
-  AuditExportManifestDetail,
-  VerifyAuditExportInput,
-  VerifyAuditExportResponse,
-  AuditExportVerificationEvent,
-  AuditExportVerificationsResponse,
-  QuarantineQuery,
-  QuarantineItem,
-  QuarantineResponse,
-  CreateKeyInput,
-  KeyInfo,
-  CreateKeyResponse,
-  KeyListItem,
-  KeyListResponse,
-  TeamInfo,
-  TeamMember,
-  MembersResponse,
-  UsageResponse,
-  Invite,
-  InviteListResponse,
-  CheckoutResponse,
-  PortalResponse,
-  Device,
-  AlertRule,
-  CreateAlertInput,
-  Webhook,
-  CreateWebhookResponse,
-  TestWebhookResponse,
-  WebhookDelivery,
-  FirewallRule,
-  InjectionPattern,
-  InjectionPatternsResponse,
-  PatternSyncResponse,
-  PatternTestResult,
-  IronDomePolicy,
-  IronDomePoliciesResponse,
-  PolicySyncResponse,
-  VerificationThreat,
-  VerificationSubmitInput,
-  VerificationSubmitResult,
-  VerificationsQuery,
-  VerificationListItem,
-  VerificationsResponse,
-  VerificationStats,
-  VerificationDetail,
-  SkillScanFinding,
-  SkillIngestFile,
-  SkillIngestOptions,
-  SkillIngestResponse,
-  SkillScanRecord,
-  SkillScansResponse,
-  ThreatIngestResponse,
-  IncidentReplayQuery,
-  IncidentEvent,
-  IncidentReplayResponse,
-  RecallExplainQuery,
-  RecallMemory,
-  RecallResult,
-  RecallExplainResponse,
-  SyncHealthResponse,
-  SyncDevice,
-  SyncMemoryInput,
-  PushMemoriesInput,
-  PushMemoriesResponse,
-  SyncedMemoriesQuery,
-  SyncedMemory,
-  SyncedMemoryDeviceHealth,
-  SyncedMemoriesSummary,
-  SyncedMemoriesResponse,
-  SyncGraphEntity,
-  SyncGraphTriple,
-  SyncGraphMemoryEntity,
-  PushMemoryGraphInput,
-  PushMemoryGraphResponse,
-  LicenseInfo,
-  RegenerateLicenseResponse,
-} from './types.js';
+// Re-export types and errors (types.ts is types-only, so this is exhaustive by construction)
+export type * from './types.js';
 export { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError } from './errors.js';

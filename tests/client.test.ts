@@ -548,6 +548,25 @@ describe('audit export (file body)', () => {
 
     expectRequest(calls[0], { method: 'GET', path: '/v1/audit/export?format=json&shape=envelope' });
   });
+
+  it('exportAuditLogs leaves absent integrity headers undefined — the export is unverifiable, not ""', async () => {
+    mockFetch(new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } }));
+
+    const res = await makeClient().exportAuditLogs();
+
+    expect(res.headers.sha256).toBeUndefined();
+    expect(res.headers.signature).toBeUndefined();
+    expect(res.headers.count).toBeUndefined();
+    expect(res.headers.manifestPersisted).toBe(false);
+  });
+
+  it('exportAuditLogs treats a non-numeric count header as undefined', async () => {
+    mockFetch(new Response('[]', { status: 200, headers: { 'X-ShieldCortex-Export-Count': 'not-a-number' } }));
+
+    const res = await makeClient().exportAuditLogs();
+
+    expect(res.headers.count).toBeUndefined();
+  });
 });
 
 describe('audit ingest', () => {
