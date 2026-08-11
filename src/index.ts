@@ -69,6 +69,15 @@ import type {
   IncidentReplayResponse,
   RecallExplainQuery,
   RecallExplainResponse,
+  SyncHealthResponse,
+  PushMemoriesInput,
+  PushMemoriesResponse,
+  SyncedMemoriesQuery,
+  SyncedMemoriesResponse,
+  PushMemoryGraphInput,
+  PushMemoryGraphResponse,
+  LicenseInfo,
+  RegenerateLicenseResponse,
 } from './types.js';
 import { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError } from './errors.js';
 
@@ -466,6 +475,34 @@ export class ShieldCortex {
     return this.get<RecallExplainResponse>('/v1/recall/explain', query);
   }
 
+  // --- Sync ---
+
+  async getSyncHealth(): Promise<SyncHealthResponse> {
+    return this.get<SyncHealthResponse>('/v1/sync/health');
+  }
+
+  async pushMemories(input: PushMemoriesInput): Promise<PushMemoriesResponse> {
+    return this.post<PushMemoriesResponse>('/v1/sync/memories', input);
+  }
+
+  async listSyncedMemories(query?: SyncedMemoriesQuery): Promise<SyncedMemoriesResponse> {
+    return this.get<SyncedMemoriesResponse>('/v1/sync/memories', query);
+  }
+
+  async pushMemoryGraph(input: PushMemoryGraphInput): Promise<PushMemoryGraphResponse> {
+    return this.post<PushMemoryGraphResponse>('/v1/sync/graph', input);
+  }
+
+  // --- License ---
+
+  async getLicense(): Promise<LicenseInfo> {
+    return this.get<LicenseInfo>('/v1/license');
+  }
+
+  async regenerateLicense(): Promise<RegenerateLicenseResponse> {
+    return this.post<RegenerateLicenseResponse>('/v1/license/regenerate', {});
+  }
+
   // --- Internal HTTP ---
 
   private buildQuery(params?: Record<string, unknown> | object): string {
@@ -622,5 +659,22 @@ export type {
   RecallMemory,
   RecallResult,
   RecallExplainResponse,
+  SyncHealthResponse,
+  SyncDevice,
+  SyncMemoryInput,
+  PushMemoriesInput,
+  PushMemoriesResponse,
+  SyncedMemoriesQuery,
+  SyncedMemory,
+  SyncedMemoryDeviceHealth,
+  SyncedMemoriesSummary,
+  SyncedMemoriesResponse,
+  SyncGraphEntity,
+  SyncGraphTriple,
+  SyncGraphMemoryEntity,
+  PushMemoryGraphInput,
+  PushMemoryGraphResponse,
+  LicenseInfo,
+  RegenerateLicenseResponse,
 } from './types.js';
 export { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError } from './errors.js';

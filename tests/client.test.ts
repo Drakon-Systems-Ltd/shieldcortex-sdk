@@ -988,3 +988,161 @@ describe('recall', () => {
     expect(res.results[0].breakdown.exact_phrase).toBe(0.2);
   });
 });
+
+describe('sync', () => {
+  const device = { device_id: 'a0000000-0000-4000-8000-000000000001', device_name: 'Mac', platform: 'darwin' };
+  const memory = {
+    external_id: 'mem-1',
+    type: 'reference',
+    category: 'process',
+    title: 'Release checklist',
+    content: 'Tag push auto-publishes.',
+    created_at: '2026-08-01T00:00:00.000Z',
+    updated_at: '2026-08-10T00:00:00.000Z',
+  };
+
+  it('getSyncHealth GETs /v1/sync/health', async () => {
+    const payload = {
+      status: 'ok',
+      team_id: 2,
+      required_tables: ['synced_memories', 'sync_ingest_events'],
+      present_tables: ['synced_memories', 'sync_ingest_events'],
+      missing_tables: [],
+    };
+    const { calls } = mockFetchOnce(200, payload);
+
+    const res = await makeClient().getSyncHealth();
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/sync/health' });
+    expect(res.status).toBe('ok');
+    expect(res.missing_tables).toEqual([]);
+  });
+
+  it('pushMemories POSTs device + memories and returns counts including deletions', async () => {
+    const { calls } = mockFetchOnce(200, { received: 1, upserted: 1, deleted: 0, device_id: device.device_id });
+
+    const res = await makeClient().pushMemories({ device, memories: [memory] });
+
+    expectRequest(calls[0], { method: 'POST', path: '/v1/sync/memories', body: { device, memories: [memory] } });
+    expect(res).toEqual({ received: 1, upserted: 1, deleted: 0, device_id: device.device_id });
+  });
+
+  it('pushMemories surfaces the per-plan synced-memory cap 402 as the generic ShieldCortexError with the synced body', async () => {
+    const capBody = { error: 'Quota Exceeded', message: 'Synced memory limit reached', synced: { used: 1000, limit: 1000 } };
+    mockFetchOnce(402, capBody);
+
+    const err = await makeClient().pushMemories({ device, memories: [memory] }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ShieldCortexError);
+    expect((err as ShieldCortexError).status).toBe(402);
+    expect(JSON.parse((err as ShieldCortexError).body).synced).toEqual({ used: 1000, limit: 1000 });
+  });
+
+  it('listSyncedMemories passes filters and returns memories + summary + pagination', async () => {
+    const payload = {
+      memories: [{
+        external_id: 'mem-1', local_id: 4, type: 'reference', category: 'process',
+        title: 'Release checklist', content: 'Tag push auto-publishes.', project: 'shieldcortex',
+        tags: ['release'], salience: 0.8, scope: 'project', transferable: true,
+        trust_score: 0.9, sensitivity_level: null, source: null, metadata: {},
+        review_status: null, review_note: null, review_assignee: null,
+        reviewed_at: null, reviewed_by: null, is_canonical: true,
+        created_at: '2026-08-01T00:00:00.000Z', updated_at: '2026-08-10T00:00:00.000Z',
+        deleted_at: null, last_synced_at: '2026-08-10T00:00:00.000Z',
+        device_uuid: device.device_id, device_name: 'Mac', device_platform: 'darwin',
+      }],
+      total: 1,
+      summary: {
+        total: 1, deleted: 0, devices: 1, projects: 1,
+        last_synced_at: '2026-08-10T00:00:00.000Z', last_updated_at: '2026-08-10T00:00:00.000Z',
+        health: {
+          healthy_devices: 1, stale_devices: 0, offline_devices: 0,
+          latest_device_sync: { device_uuid: device.device_id, device_name: 'Mac', last_synced_at: '2026-08-10T00:00:00.000Z', platform: 'darwin' },
+          devices: [{
+            device_uuid: device.device_id, device_name: 'Mac', platform: 'darwin',
+            memory_count: 1, last_seen: '2026-08-10T00:00:00.000Z',
+            last_synced_at: '2026-08-10T00:00:00.000Z', last_updated_at: '2026-08-10T00:00:00.000Z',
+            status: 'healthy',
+          }],
+        },
+      },
+      pagination: { limit: 50, offset: 0, hasMore: false },
+    };
+    const { calls } = mockFetchOnce(200, payload);
+
+    const res = await makeClient().listSyncedMemories({ project: 'shieldcortex', include_deleted: true });
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/sync/memories?project=shieldcortex&include_deleted=true' });
+    expect(res.summary?.health.healthy_devices).toBe(1);
+    expect(res.pagination.hasMore).toBe(false);
+  });
+
+  it('listSyncedMemories tolerates the unknown-device branch which OMITS summary entirely', async () => {
+    mockFetchOnce(200, { memories: [], total: 0, pagination: { limit: 50, offset: 0, hasMore: false } });
+
+    const res = await makeClient().listSyncedMemories({ device_id: 'b0000000-0000-4000-8000-00000000dead' });
+
+    expect(res.memories).toEqual([]);
+    expect(res.summary).toBeUndefined();
+    expect('summary' in res).toBe(false);
+  });
+
+  it('pushMemoryGraph POSTs entities/triples/links and returns upsert + prune counts', async () => {
+    const input = {
+      device,
+      entities: [{ external_id: 'ent-1', name: 'ShieldCortex', type: 'project' }],
+      triples: [{ external_id: 'tri-1', subject_external_id: 'ent-1', predicate: 'ships_via', object_external_id: 'ent-2' }],
+      memory_entities: [{ memory_external_id: 'mem-1', entity_external_id: 'ent-1', role: 'subject' }],
+      prune_memory_external_ids: ['mem-gone'],
+    };
+    const { calls } = mockFetchOnce(200, {
+      device_id: device.device_id, entities: 1, triples: 1,
+      memory_entities: 1, pruned_memories: 1, orphan_entities_pruned: 0,
+    });
+
+    const res = await makeClient().pushMemoryGraph(input);
+
+    expectRequest(calls[0], { method: 'POST', path: '/v1/sync/graph', body: input });
+    expect(res.orphan_entities_pruned).toBe(0);
+  });
+});
+
+describe('license', () => {
+  it('getLicense returns the no-licence branch where last_validated_at is OMITTED (not null)', async () => {
+    const { calls } = mockFetchOnce(200, { tier: 'free', status: 'none', expires_at: null, created_at: null });
+
+    const res = await makeClient().getLicense();
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/license' });
+    expect(res.tier).toBe('free');
+    expect('last_validated_at' in res).toBe(false);
+  });
+
+  it('getLicense returns the full shape when a licence exists', async () => {
+    const payload = {
+      tier: 'enterprise', status: 'active',
+      expires_at: '2026-09-15T00:00:00.000Z', created_at: '2026-08-11T00:00:00.000Z',
+      last_validated_at: '2026-08-11T08:00:00.000Z',
+    };
+    mockFetchOnce(200, payload);
+
+    const res = await makeClient().getLicense();
+
+    expect(res.last_validated_at).toBe('2026-08-11T08:00:00.000Z');
+  });
+
+  it('regenerateLicense POSTs an empty body and returns the new key', async () => {
+    const payload = {
+      key: 'scx_newkey123', tier: 'enterprise',
+      expires_at: '2026-09-15T00:00:00.000Z',
+      message: 'Activate with: shieldcortex license activate <key>',
+    };
+    const { calls } = mockFetchOnce(200, payload);
+
+    const res = await makeClient().regenerateLicense();
+
+    expectRequest(calls[0], { method: 'POST', path: '/v1/license/regenerate' });
+    expect(calls[0].rawBody).toBe('{}');
+    expect(res.key).toBe('scx_newkey123');
+  });
+});

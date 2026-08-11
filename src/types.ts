@@ -912,6 +912,199 @@ export interface RecallExplainResponse {
   results: RecallResult[];
 }
 
+// --- Sync ---
+
+export interface SyncHealthResponse {
+  status: 'ok' | 'degraded';
+  team_id: number;
+  required_tables: string[];
+  present_tables: string[];
+  missing_tables: string[];
+}
+
+export interface SyncDevice {
+  device_id: string;
+  device_name?: string;
+  platform?: string;
+}
+
+export interface SyncMemoryInput {
+  external_id: string;
+  local_id?: number;
+  type: string;
+  category: string;
+  title: string;
+  content: string;
+  project?: string | null;
+  tags?: string[];
+  salience?: number;
+  scope?: 'project' | 'global';
+  transferable?: boolean;
+  trust_score?: number | null;
+  sensitivity_level?: string | null;
+  source?: string | null;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface PushMemoriesInput {
+  device: SyncDevice;
+  /** 1–200 memories per batch. */
+  memories: SyncMemoryInput[];
+}
+
+export interface PushMemoriesResponse {
+  received: number;
+  upserted: number;
+  deleted: number;
+  device_id: string;
+}
+
+export interface SyncedMemoriesQuery {
+  device_id?: string;
+  project?: string;
+  search?: string;
+  include_deleted?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+export interface SyncedMemory {
+  external_id: string;
+  local_id: number | null;
+  type: string;
+  category: string;
+  title: string;
+  content: string;
+  project: string | null;
+  tags: string[];
+  salience: number;
+  scope: string;
+  transferable: boolean;
+  trust_score: number | null;
+  sensitivity_level: string | null;
+  source: string | null;
+  metadata: Record<string, unknown>;
+  review_status: 'suppressed' | 'archived' | 'canonical' | null;
+  review_note: string | null;
+  review_assignee: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  is_canonical: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+  deleted_at: string | null;
+  last_synced_at: string | null;
+  device_uuid: string;
+  device_name: string | null;
+  device_platform: string | null;
+}
+
+export interface SyncedMemoryDeviceHealth {
+  device_uuid: string;
+  device_name: string | null;
+  platform: string | null;
+  memory_count: number;
+  last_seen: string | null;
+  last_synced_at: string | null;
+  last_updated_at: string | null;
+  status: 'healthy' | 'stale' | 'offline';
+}
+
+export interface SyncedMemoriesSummary {
+  total: number;
+  deleted: number;
+  devices: number;
+  projects: number;
+  last_synced_at: string | null;
+  last_updated_at: string | null;
+  health: {
+    healthy_devices: number;
+    stale_devices: number;
+    offline_devices: number;
+    latest_device_sync: {
+      device_uuid: string;
+      device_name: string | null;
+      last_synced_at: string | null;
+      platform: string | null;
+    } | null;
+    devices: SyncedMemoryDeviceHealth[];
+  };
+}
+
+export interface SyncedMemoriesResponse {
+  memories: SyncedMemory[];
+  total: number;
+  /** OMITTED entirely on the unknown-device branch. */
+  summary?: SyncedMemoriesSummary;
+  pagination: Pagination;
+}
+
+export interface SyncGraphEntity {
+  external_id: string;
+  local_id?: number;
+  name: string;
+  type: string;
+  aliases?: string[];
+  first_seen?: string | null;
+  memory_count?: number;
+}
+
+export interface SyncGraphTriple {
+  external_id: string;
+  local_id?: number;
+  subject_external_id: string;
+  predicate: string;
+  object_external_id: string;
+  source_memory_external_id?: string | null;
+  confidence?: number | null;
+  created_at?: string | null;
+}
+
+export interface SyncGraphMemoryEntity {
+  memory_external_id: string;
+  entity_external_id: string;
+  role?: string;
+}
+
+/** At least one of the four arrays must be non-empty (server 400s otherwise). */
+export interface PushMemoryGraphInput {
+  device: SyncDevice;
+  entities?: SyncGraphEntity[];
+  triples?: SyncGraphTriple[];
+  memory_entities?: SyncGraphMemoryEntity[];
+  prune_memory_external_ids?: string[];
+}
+
+export interface PushMemoryGraphResponse {
+  device_id: string;
+  entities: number;
+  triples: number;
+  memory_entities: number;
+  pruned_memories: number;
+  orphan_entities_pruned: number;
+}
+
+// --- License ---
+
+export interface LicenseInfo {
+  tier: string;
+  status: string;
+  expires_at: string | null;
+  created_at: string | null;
+  /** OMITTED entirely (not null) on the no-licence branch. */
+  last_validated_at?: string | null;
+}
+
+export interface RegenerateLicenseResponse {
+  key: string;
+  tier: string;
+  expires_at: string;
+  message: string;
+}
+
 // --- Client options ---
 
 export interface ShieldCortexOptions {
