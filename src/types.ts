@@ -169,6 +169,213 @@ export interface AuditStats {
   threatBreakdown: Record<string, number>;
 }
 
+/** Shared list-envelope pagination. `hasMore` is camelCase on the wire. */
+export interface Pagination {
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+// --- Audit Trends ---
+
+export interface AuditTrendsQuery {
+  /** camelCase on the wire — preserved verbatim. */
+  timeRange?: '24h' | '7d' | '30d';
+  device_id?: string;
+  source?: string;
+}
+
+export interface AuditTrendBucket {
+  time: string;
+  allowed: number;
+  blocked: number;
+  quarantined: number;
+}
+
+export interface AuditTrendsResponse {
+  buckets: AuditTrendBucket[];
+  /** The EFFECTIVE range — free tier requesting 30d gets back "7d". */
+  timeRange: '24h' | '7d' | '30d';
+}
+
+// --- Audit Export (file download) ---
+
+export interface AuditExportQuery {
+  /** Defaults to "json" when omitted. */
+  format?: 'csv' | 'json';
+  /** Only affects format=json; default "array". */
+  shape?: 'array' | 'envelope';
+  from?: string;
+  to?: string;
+  level?: 'ALLOW' | 'BLOCK' | 'QUARANTINE';
+  source?: string;
+  device_id?: string;
+  search?: string;
+}
+
+/** Parsed X-ShieldCortex-Export-* integrity headers. */
+export interface AuditExportHeaders {
+  sha256: string;
+  count: number;
+  generatedAt: string;
+  manifestId: string;
+  signature: string;
+  signatureAlgorithm: string;
+  manifestPersisted: boolean;
+}
+
+export interface AuditExportResult {
+  /** Raw file body: CSV text, a bare JSON array, or a {meta, entries} envelope. */
+  content: string;
+  headers: AuditExportHeaders;
+}
+
+// --- Audit Ingest ---
+
+export interface AuditIngestEntry {
+  source_type: string;
+  source_identifier: string;
+  trust_score: number;
+  sensitivity_level: string;
+  firewall_result: 'ALLOW' | 'BLOCK' | 'QUARANTINE';
+  anomaly_score: number;
+  threat_indicators: string[];
+  blocked_patterns?: string[];
+  fragmentation_score?: number | null;
+  reason: string;
+  pipeline_duration_ms: number;
+  timestamp: string;
+  device_id?: string;
+  device_name?: string;
+  platform?: string;
+}
+
+export interface IngestResponse {
+  ingested: number;
+}
+
+// --- Iron Dome Analytics (Pro+) ---
+
+export interface IronDomeStatsQuery {
+  timeRange?: '24h' | '7d' | '30d';
+  device_id?: string;
+}
+
+export interface IronDomeStats {
+  total_events: number;
+  blocked: number;
+  allowed: number;
+  by_action: Record<string, number>;
+  top_devices: Array<{ device_name: string | null; device_id: string; count: number }>;
+}
+
+export interface IronDomeEventsQuery {
+  timeRange?: '24h' | '7d' | '30d';
+  device_id?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface IronDomeEvent {
+  id: number;
+  timestamp: string;
+  source_type: string;
+  source_identifier: string;
+  trust_score: number;
+  sensitivity_level: string;
+  firewall_result: 'ALLOW' | 'BLOCK' | 'QUARANTINE';
+  anomaly_score: number;
+  threat_indicators: string[];
+  reason: string | null;
+  pipeline_duration_ms: number;
+  device_id: string | null;
+  device_name: string | null;
+  action_type: string;
+}
+
+/** No `total` on this envelope, unlike GET /v1/audit. */
+export interface IronDomeEventsResponse {
+  events: IronDomeEvent[];
+  pagination: Pagination;
+}
+
+// --- Audit Export Manifests ---
+
+export interface AuditExportManifest {
+  manifest_id: string;
+  request_id: string;
+  api_key_id: number | null;
+  format: 'csv' | 'json';
+  shape: 'array' | 'envelope';
+  filters: {
+    from: string | null;
+    to: string | null;
+    level: string | null;
+    source: string | null;
+    device_id: string | null;
+    search: string | null;
+  };
+  entry_count: number;
+  export_sha256: string;
+  signature_algorithm: 'hmac-sha256';
+  signature: string;
+  generated_at: string;
+  created_at: string;
+}
+
+export interface AuditExportsQuery {
+  limit?: number;
+  offset?: number;
+  format?: 'csv' | 'json';
+  shape?: 'array' | 'envelope';
+  search?: string;
+}
+
+/** No `total` on this envelope. */
+export interface AuditExportsResponse {
+  manifests: AuditExportManifest[];
+  pagination: Pagination;
+}
+
+export interface AuditExportManifestDetail {
+  manifest: AuditExportManifest & { team_id: number };
+  verification: { signature_valid: boolean; signature_algorithm: 'hmac-sha256' };
+}
+
+export interface VerifyAuditExportInput {
+  export_sha256?: string;
+  signature?: string;
+}
+
+export interface VerifyAuditExportResponse {
+  manifest_id: string;
+  verification: {
+    signature_valid: boolean;
+    /** null when no export_sha256 was provided to compare against. */
+    sha256_matches: boolean | null;
+    signature_algorithm: 'hmac-sha256';
+  };
+  expected: { export_sha256: string; signature: string };
+}
+
+export interface AuditExportVerificationEvent {
+  id: number;
+  manifest_id: string;
+  request_id: string;
+  api_key_id: number | null;
+  provided_export_sha256: string | null;
+  provided_signature: string | null;
+  result_sha256_matches: boolean | null;
+  result_signature_valid: boolean;
+  created_at: string;
+}
+
+/** No `total` on this envelope. */
+export interface AuditExportVerificationsResponse {
+  events: AuditExportVerificationEvent[];
+  pagination: Pagination;
+}
+
 // --- Quarantine ---
 
 export interface QuarantineQuery {

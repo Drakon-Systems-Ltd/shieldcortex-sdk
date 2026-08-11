@@ -11,6 +11,22 @@ import type {
   AuditLogEntry,
   AuditResponse,
   AuditStats,
+  AuditTrendsQuery,
+  AuditTrendsResponse,
+  AuditExportQuery,
+  AuditExportResult,
+  AuditIngestEntry,
+  IngestResponse,
+  IronDomeStatsQuery,
+  IronDomeStats,
+  IronDomeEventsQuery,
+  IronDomeEventsResponse,
+  AuditExportsQuery,
+  AuditExportsResponse,
+  AuditExportManifestDetail,
+  VerifyAuditExportInput,
+  VerifyAuditExportResponse,
+  AuditExportVerificationsResponse,
   QuarantineQuery,
   QuarantineResponse,
   CreateKeyInput,
@@ -78,6 +94,63 @@ export class ShieldCortex {
 
   async getAuditStats(timeRange?: '24h' | '7d' | '30d'): Promise<AuditStats> {
     return this.get<AuditStats>('/v1/audit/stats', timeRange ? { timeRange } : undefined);
+  }
+
+  async getAuditTrends(query?: AuditTrendsQuery): Promise<AuditTrendsResponse> {
+    return this.get<AuditTrendsResponse>('/v1/audit/trends', query);
+  }
+
+  /**
+   * Download audit logs as a file body (CSV text or JSON). Unlike every other
+   * endpoint this does NOT return a JSON envelope — the raw body is handed
+   * back verbatim alongside the parsed X-ShieldCortex-Export-* integrity headers.
+   */
+  async exportAuditLogs(query?: AuditExportQuery): Promise<AuditExportResult> {
+    const params = { ...query, format: query?.format ?? 'json' };
+    const res = await this.requestRaw(`/v1/audit/export${this.buildQuery(params)}`);
+    return {
+      content: await res.text(),
+      headers: {
+        sha256: res.headers.get('X-ShieldCortex-Export-SHA256') ?? '',
+        count: Number(res.headers.get('X-ShieldCortex-Export-Count') ?? 0),
+        generatedAt: res.headers.get('X-ShieldCortex-Export-Generated-At') ?? '',
+        manifestId: res.headers.get('X-ShieldCortex-Export-Manifest-Id') ?? '',
+        signature: res.headers.get('X-ShieldCortex-Export-Signature') ?? '',
+        signatureAlgorithm: res.headers.get('X-ShieldCortex-Export-Signature-Alg') ?? '',
+        manifestPersisted: res.headers.get('X-ShieldCortex-Export-Manifest-Persisted') === '1',
+      },
+    };
+  }
+
+  async ingestAuditEvents(entries: AuditIngestEntry[]): Promise<IngestResponse> {
+    return this.post<IngestResponse>('/v1/audit/ingest', { entries });
+  }
+
+  async getIronDomeStats(query?: IronDomeStatsQuery): Promise<IronDomeStats> {
+    return this.get<IronDomeStats>('/v1/audit/iron-dome/stats', query);
+  }
+
+  async getIronDomeEvents(query?: IronDomeEventsQuery): Promise<IronDomeEventsResponse> {
+    return this.get<IronDomeEventsResponse>('/v1/audit/iron-dome/events', query);
+  }
+
+  async listAuditExports(query?: AuditExportsQuery): Promise<AuditExportsResponse> {
+    return this.get<AuditExportsResponse>('/v1/audit/exports', query);
+  }
+
+  async getAuditExportManifest(manifestId: string): Promise<AuditExportManifestDetail> {
+    return this.get<AuditExportManifestDetail>(`/v1/audit/exports/${manifestId}`);
+  }
+
+  async verifyAuditExport(manifestId: string, input?: VerifyAuditExportInput): Promise<VerifyAuditExportResponse> {
+    return this.post<VerifyAuditExportResponse>(`/v1/audit/exports/${manifestId}/verify`, input ?? {});
+  }
+
+  async listAuditExportVerifications(
+    manifestId: string,
+    query?: { limit?: number; offset?: number }
+  ): Promise<AuditExportVerificationsResponse> {
+    return this.get<AuditExportVerificationsResponse>(`/v1/audit/exports/${manifestId}/verifications`, query);
   }
 
   // --- Quarantine ---
@@ -325,15 +398,18 @@ export class ShieldCortex {
 
   // --- Internal HTTP ---
 
-  private async get<T = unknown>(path: string, params?: Record<string, unknown> | object): Promise<T> {
-    const qs = params
+  private buildQuery(params?: Record<string, unknown> | object): string {
+    return params
       ? '?' + new URLSearchParams(
           Object.entries(params)
             .filter(([, v]) => v !== undefined)
             .map(([k, v]) => [k, String(v)])
         ).toString()
       : '';
-    return this.request<T>(`${path}${qs}`);
+  }
+
+  private async get<T = unknown>(path: string, params?: Record<string, unknown> | object): Promise<T> {
+    return this.request<T>(`${path}${this.buildQuery(params)}`);
   }
 
   private async post<T = unknown>(path: string, body: unknown): Promise<T> {
@@ -352,7 +428,8 @@ export class ShieldCortex {
     await this.request(path, { method: 'DELETE' });
   }
 
-  private async request<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+  /** Fetch + error mapping, without consuming the response body on success. */
+  private async requestRaw(path: string, init?: RequestInit): Promise<Response> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
@@ -376,6 +453,11 @@ export class ShieldCortex {
       throw new ShieldCortexError(`API error: ${res.status}`, res.status, body);
     }
 
+    return res;
+  }
+
+  private async request<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+    const res = await this.requestRaw(path, init);
     return res.json() as Promise<T>;
   }
 }
@@ -395,6 +477,28 @@ export type {
   AuditLogEntry,
   AuditResponse,
   AuditStats,
+  Pagination,
+  AuditTrendsQuery,
+  AuditTrendBucket,
+  AuditTrendsResponse,
+  AuditExportQuery,
+  AuditExportHeaders,
+  AuditExportResult,
+  AuditIngestEntry,
+  IngestResponse,
+  IronDomeStatsQuery,
+  IronDomeStats,
+  IronDomeEventsQuery,
+  IronDomeEvent,
+  IronDomeEventsResponse,
+  AuditExportManifest,
+  AuditExportsQuery,
+  AuditExportsResponse,
+  AuditExportManifestDetail,
+  VerifyAuditExportInput,
+  VerifyAuditExportResponse,
+  AuditExportVerificationEvent,
+  AuditExportVerificationsResponse,
   QuarantineQuery,
   QuarantineItem,
   QuarantineResponse,

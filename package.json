@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
+    "test": "tsc -p tsconfig.test.json --noEmit && vitest run",
     "prepublishOnly": "npm run build"
   },
   "files": [

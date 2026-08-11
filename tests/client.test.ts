@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { makeClient, mockFetchOnce, TEST_API_KEY } from './fixtures.js';
+import { expectRequest, makeClient, mockFetch, mockFetchOnce, TEST_API_KEY } from './fixtures.js';
+import { ShieldCortexError, ValidationError } from '../src/index.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -473,5 +474,232 @@ describe('iron dome policies', () => {
     expect(calls[0].url).toBe('https://api.shieldcortex.ai/v1/iron-dome/policies/4');
     expect(calls[0].method).toBe('DELETE');
     expect(res).toBeUndefined();
+  });
+});
+
+describe('audit trends', () => {
+  it('getAuditTrends without a query sends no query string', async () => {
+    const payload = { buckets: [{ time: '2026-08-11T09:00:00.000Z', allowed: 5, blocked: 1, quarantined: 0 }], timeRange: '24h' };
+    const { calls } = mockFetchOnce(200, payload);
+
+    const res = await makeClient().getAuditTrends();
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/audit/trends' });
+    expect(res.buckets).toHaveLength(1);
+    expect(res.timeRange).toBe('24h');
+  });
+
+  it('getAuditTrends passes camelCase timeRange plus filters as query params', async () => {
+    // Free tier asking for 30d gets 7d-limited data back — response echoes the EFFECTIVE range.
+    const { calls } = mockFetchOnce(200, { buckets: [], timeRange: '7d' });
+
+    const res = await makeClient().getAuditTrends({ timeRange: '30d', device_id: 'uuid-1', source: 'hook' });
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/audit/trends?timeRange=30d&device_id=uuid-1&source=hook' });
+    expect(res.timeRange).toBe('7d');
+  });
+});
+
+describe('audit export (file body)', () => {
+  const exportHeaders = {
+    'X-ShieldCortex-Export-SHA256': 'ab'.repeat(32),
+    'X-ShieldCortex-Export-Count': '2',
+    'X-ShieldCortex-Export-Generated-At': '2026-08-11T09:00:00.000Z',
+    'X-ShieldCortex-Export-Manifest-Id': 'exp_' + 'cd'.repeat(16),
+    'X-ShieldCortex-Export-Signature': 'ef'.repeat(32),
+    'X-ShieldCortex-Export-Signature-Alg': 'hmac-sha256',
+    'X-ShieldCortex-Export-Manifest-Persisted': '1',
+  };
+
+  it('exportAuditLogs defaults to format=json and returns raw body + parsed integrity headers', async () => {
+    const body = JSON.stringify([{ id: 1, firewall_result: 'BLOCK' }, { id: 2, firewall_result: 'ALLOW' }]);
+    mockFetch(new Response(body, { status: 200, headers: { 'content-type': 'application/json', ...exportHeaders } }));
+    const client = makeClient();
+
+    const res = await client.exportAuditLogs();
+
+    expect(res.content).toBe(body);
+    expect(res.headers).toEqual({
+      sha256: 'ab'.repeat(32),
+      count: 2,
+      generatedAt: '2026-08-11T09:00:00.000Z',
+      manifestId: 'exp_' + 'cd'.repeat(16),
+      signature: 'ef'.repeat(32),
+      signatureAlgorithm: 'hmac-sha256',
+      manifestPersisted: true,
+    });
+  });
+
+  it('exportAuditLogs sends format + filters and returns CSV text verbatim', async () => {
+    const csv = 'id,timestamp,source_type\n"1","2026-08-11T09:00:00.000Z","hook"\n';
+    const { calls } = mockFetch(new Response(csv, { status: 200, headers: { 'content-type': 'text/csv', ...exportHeaders } }));
+
+    const res = await makeClient().exportAuditLogs({ format: 'csv', level: 'BLOCK', search: 'sudo' });
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/audit/export?format=csv&level=BLOCK&search=sudo' });
+    expect(res.content).toBe(csv);
+  });
+
+  it('exportAuditLogs supports the JSON envelope shape param', async () => {
+    const envelope = { meta: { format: 'json', hash_algorithm: 'sha256', entries_sha256: 'ab'.repeat(32), entry_count: 0, generated_at: '2026-08-11T09:00:00.000Z' }, entries: [] };
+    const { calls } = mockFetch(new Response(JSON.stringify(envelope), { status: 200, headers: exportHeaders }));
+
+    await makeClient().exportAuditLogs({ format: 'json', shape: 'envelope' });
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/audit/export?format=json&shape=envelope' });
+  });
+});
+
+describe('audit ingest', () => {
+  const entry = {
+    source_type: 'hook',
+    source_identifier: 'cortex-memory',
+    trust_score: 0.4,
+    sensitivity_level: 'INTERNAL',
+    firewall_result: 'BLOCK' as const,
+    anomaly_score: 0.9,
+    threat_indicators: ['instruction_override'],
+    reason: 'Prompt injection detected',
+    pipeline_duration_ms: 12,
+    timestamp: '2026-08-11T09:00:00.000Z',
+  };
+
+  it('ingestAuditEvents POSTs { entries } and returns the ingested count', async () => {
+    const { calls } = mockFetchOnce(201, { ingested: 1 });
+
+    const res = await makeClient().ingestAuditEvents([entry]);
+
+    expectRequest(calls[0], { method: 'POST', path: '/v1/audit/ingest', body: { entries: [entry] } });
+    expect(res.ingested).toBe(1);
+  });
+
+  it('ingestAuditEvents surfaces a 402 scan-quota as the generic ShieldCortexError with the camelCase usage body', async () => {
+    const quotaBody = {
+      error: 'Quota Exceeded',
+      message: 'Monthly scan limit reached',
+      usage: { scansUsed: 500, scansLimit: 500, requested: 1, remaining: 0 },
+    };
+    mockFetchOnce(402, quotaBody);
+
+    const err = await makeClient().ingestAuditEvents([entry]).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ShieldCortexError);
+    expect(err).not.toBeInstanceOf(ValidationError);
+    expect((err as ShieldCortexError).status).toBe(402);
+    expect(JSON.parse((err as ShieldCortexError).body)).toEqual(quotaBody);
+  });
+});
+
+describe('iron dome analytics', () => {
+  it('getIronDomeStats passes timeRange + device_id and returns the stats shape', async () => {
+    const payload = {
+      total_events: 4,
+      blocked: 3,
+      allowed: 1,
+      by_action: { command_block: 3, unknown: 1 },
+      top_devices: [{ device_name: 'Mac', device_id: 'uuid-1', count: 4 }],
+    };
+    const { calls } = mockFetchOnce(200, payload);
+
+    const res = await makeClient().getIronDomeStats({ timeRange: '7d', device_id: 'uuid-1' });
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/audit/iron-dome/stats?timeRange=7d&device_id=uuid-1' });
+    expect(res.by_action['command_block']).toBe(3);
+    expect(res.top_devices[0].device_id).toBe('uuid-1');
+  });
+
+  it('getIronDomeEvents returns an envelope with pagination but NO total', async () => {
+    const payload = {
+      events: [{
+        id: 1, timestamp: '2026-08-11T09:00:00.000Z', source_type: 'iron-dome', source_identifier: 'iron-dome',
+        trust_score: 0.1, sensitivity_level: 'INTERNAL', firewall_result: 'BLOCK', anomaly_score: 0.95,
+        threat_indicators: ['privesc'], reason: '[iron-dome:command_block] sudo rm', pipeline_duration_ms: 4,
+        device_id: 'uuid-1', device_name: 'Mac', action_type: 'command_block',
+      }],
+      pagination: { limit: 50, offset: 0, hasMore: false },
+    };
+    const { calls } = mockFetchOnce(200, payload);
+
+    const res = await makeClient().getIronDomeEvents({ limit: 50 });
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/audit/iron-dome/events?limit=50' });
+    expect(res.events[0].action_type).toBe('command_block');
+    expect(res.pagination.hasMore).toBe(false);
+    expect('total' in res).toBe(false);
+  });
+});
+
+describe('audit export manifests', () => {
+  const manifest = {
+    manifest_id: 'exp_' + 'cd'.repeat(16),
+    request_id: 'req_abc123def456',
+    api_key_id: 7,
+    format: 'json',
+    shape: 'array',
+    filters: { from: null, to: null, level: 'BLOCK', source: null, device_id: null, search: null },
+    entry_count: 2,
+    export_sha256: 'ab'.repeat(32),
+    signature_algorithm: 'hmac-sha256',
+    signature: 'ef'.repeat(32),
+    generated_at: '2026-08-11T09:00:00.000Z',
+    created_at: '2026-08-11T09:00:00.000Z',
+  };
+
+  it('listAuditExports returns { manifests, pagination } with NO total', async () => {
+    const { calls } = mockFetchOnce(200, { manifests: [manifest], pagination: { limit: 50, offset: 0, hasMore: false } });
+
+    const res = await makeClient().listAuditExports({ format: 'json', search: 'exp_' });
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/audit/exports?format=json&search=exp_' });
+    expect(res.manifests[0].manifest_id).toBe(manifest.manifest_id);
+    expect('total' in res).toBe(false);
+  });
+
+  it('getAuditExportManifest returns the manifest (with team_id) plus a server-side verification', async () => {
+    const payload = { manifest: { ...manifest, team_id: 2 }, verification: { signature_valid: true, signature_algorithm: 'hmac-sha256' } };
+    const { calls } = mockFetchOnce(200, payload);
+
+    const res = await makeClient().getAuditExportManifest(manifest.manifest_id);
+
+    expectRequest(calls[0], { method: 'GET', path: `/v1/audit/exports/${manifest.manifest_id}` });
+    expect(res.manifest.team_id).toBe(2);
+    expect(res.verification.signature_valid).toBe(true);
+  });
+
+  it('verifyAuditExport POSTs the provided digests; sha256_matches is null when none was sent', async () => {
+    const payload = {
+      manifest_id: manifest.manifest_id,
+      verification: { signature_valid: true, sha256_matches: null, signature_algorithm: 'hmac-sha256' },
+      expected: { export_sha256: 'ab'.repeat(32), signature: 'ef'.repeat(32) },
+    };
+    const { calls } = mockFetchOnce(200, payload);
+
+    const res = await makeClient().verifyAuditExport(manifest.manifest_id);
+
+    expectRequest(calls[0], { method: 'POST', path: `/v1/audit/exports/${manifest.manifest_id}/verify`, body: {} });
+    expect(res.verification.sha256_matches).toBeNull();
+  });
+
+  it('verifyAuditExport passes export_sha256 + signature through', async () => {
+    const input = { export_sha256: 'ab'.repeat(32), signature: 'ef'.repeat(32) };
+    const { calls } = mockFetchOnce(200, {
+      manifest_id: manifest.manifest_id,
+      verification: { signature_valid: true, sha256_matches: true, signature_algorithm: 'hmac-sha256' },
+      expected: input,
+    });
+
+    const res = await makeClient().verifyAuditExport(manifest.manifest_id, input);
+
+    expectRequest(calls[0], { method: 'POST', path: `/v1/audit/exports/${manifest.manifest_id}/verify`, body: input });
+    expect(res.verification.sha256_matches).toBe(true);
+  });
+
+  it('listAuditExportVerifications returns { events, pagination }; unknown manifests yield an empty 200', async () => {
+    const { calls } = mockFetchOnce(200, { events: [], pagination: { limit: 50, offset: 0, hasMore: false } });
+
+    const res = await makeClient().listAuditExportVerifications('exp_unknown', { limit: 50 });
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/audit/exports/exp_unknown/verifications?limit=50' });
+    expect(res.events).toEqual([]);
   });
 });

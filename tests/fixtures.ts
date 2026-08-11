@@ -1,8 +1,10 @@
-import { vi } from 'vitest';
+import { expect, vi } from 'vitest';
 import { ShieldCortex } from '../src/index.js';
 import type { ShieldCortexOptions } from '../src/index.js';
 
 export const TEST_API_KEY = 'sc_test_abc123';
+
+export const BASE = 'https://api.shieldcortex.ai';
 
 export interface CapturedCall {
   url: string;
@@ -51,6 +53,21 @@ export function mockFetch(...responses: Response[]): { calls: CapturedCall[]; fe
   });
   vi.stubGlobal('fetch', fetchMock);
   return { calls, fetchMock };
+}
+
+/**
+ * Assert a captured request hit the expected method + path (relative to BASE)
+ * and, when given, carried the expected JSON body.
+ */
+export function expectRequest(
+  call: CapturedCall,
+  expected: { method: string; path: string; body?: unknown }
+): void {
+  expect(call.url).toBe(`${BASE}${expected.path}`);
+  expect(call.method).toBe(expected.method);
+  if (expected.body !== undefined) {
+    expect(call.body).toEqual(expected.body);
+  }
 }
 
 /** Convenience: queue a single JSON response. */
