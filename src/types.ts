@@ -761,6 +761,157 @@ export interface VerificationDetail {
   completed_at: string | null;
 }
 
+// --- Skills ---
+
+export interface SkillScanFinding {
+  pattern: string;
+  severity: string;
+  description: string;
+  /** camelCase on the wire — preserved verbatim. */
+  matchedText?: string;
+}
+
+export interface SkillIngestFile {
+  file_path: string;
+  skill_name: string;
+  format: string;
+  risk_level: 'safe' | 'low' | 'medium' | 'high' | 'critical';
+  safe: boolean;
+  summary?: string;
+  findings?: SkillScanFinding[];
+  scan_duration_ms?: number;
+  trusted?: boolean;
+}
+
+export interface SkillIngestOptions {
+  device_id?: string;
+  device_name?: string;
+  platform?: string;
+  /** Any parseable date; defaults to now server-side. */
+  scanned_at?: string;
+}
+
+export interface SkillIngestResponse {
+  upserted: number;
+  total: number;
+}
+
+export interface SkillScanRecord {
+  id: number;
+  file_path: string;
+  skill_name: string;
+  format: string;
+  risk_level: string;
+  safe: boolean;
+  summary: string | null;
+  findings: SkillScanFinding[] | null;
+  scan_duration_ms: number | null;
+  trusted: boolean;
+  scanned_at: string | null;
+  device_id: string | null;
+  device_name: string | null;
+}
+
+/** Hard cap 200 rows, newest first — no pagination on this endpoint. */
+export interface SkillScansResponse {
+  files: SkillScanRecord[];
+  total: number;
+}
+
+// --- Threats (OpenClaw realtime compat shim) ---
+
+export interface ThreatIngestResponse {
+  ingested: number;
+}
+
+// --- Incidents ---
+
+export interface IncidentReplayQuery {
+  from?: string;
+  to?: string;
+  device_id?: string;
+  source_identifier?: string;
+  project?: string;
+  search?: string;
+  /** 1–300, default 100. */
+  limit?: number;
+}
+
+export interface IncidentEvent {
+  id: string;
+  timestamp: string;
+  stream: 'audit' | 'verification' | 'sync' | 'memory';
+  event_type: string;
+  severity: 'info' | 'warning' | 'critical';
+  summary: string;
+  details: string | null;
+  device_uuid: string | null;
+  device_name: string | null;
+  source_identifier: string | null;
+  project: string | null;
+  memory_external_id: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface IncidentReplayResponse {
+  events: IncidentEvent[];
+  total: number;
+  summary: { audit: number; verification: number; sync: number; memory: number };
+  coverage: { sources: string[]; note: string };
+}
+
+// --- Recall ---
+
+export interface RecallExplainQuery {
+  /** 2–300 characters, required. */
+  query: string;
+  project?: string;
+  device_id?: string;
+  /** 1–20, default 8. */
+  limit?: number;
+}
+
+export interface RecallMemory {
+  external_id: string;
+  title: string;
+  content: string;
+  project: string | null;
+  category: string;
+  type: string;
+  tags: string[];
+  salience: number;
+  scope: string;
+  trust_score: number | null;
+  updated_at: string;
+  last_synced_at: string;
+  device_uuid: string;
+  device_name: string | null;
+  device_platform: string | null;
+}
+
+export interface RecallResult {
+  memory: RecallMemory;
+  score: number;
+  matched_terms: string[];
+  reasons: string[];
+  linked_entities: Array<{ name: string; type: string; role: string }>;
+  breakdown: {
+    lexical: number;
+    exact_phrase: number;
+    salience: number;
+    recency: number;
+    trust: number;
+    project: number;
+  };
+}
+
+export interface RecallExplainResponse {
+  query: string;
+  project: string | null;
+  total_candidates: number;
+  results: RecallResult[];
+}
+
 // --- Client options ---
 
 export interface ShieldCortexOptions {

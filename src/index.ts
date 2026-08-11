@@ -60,6 +60,15 @@ import type {
   VerificationsResponse,
   VerificationStats,
   VerificationDetail,
+  SkillIngestFile,
+  SkillIngestOptions,
+  SkillIngestResponse,
+  SkillScansResponse,
+  ThreatIngestResponse,
+  IncidentReplayQuery,
+  IncidentReplayResponse,
+  RecallExplainQuery,
+  RecallExplainResponse,
 } from './types.js';
 import { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError } from './errors.js';
 
@@ -424,6 +433,39 @@ export class ShieldCortex {
     await this.del(`/v1/verify/${id}`);
   }
 
+  // --- Skills ---
+
+  async ingestSkillScans(files: SkillIngestFile[], options?: SkillIngestOptions): Promise<SkillIngestResponse> {
+    return this.post<SkillIngestResponse>('/v1/skills/ingest', { files, ...options });
+  }
+
+  async listSkillScans(deviceId?: string): Promise<SkillScansResponse> {
+    return this.get<SkillScansResponse>('/v1/skills', deviceId ? { device_id: deviceId } : undefined);
+  }
+
+  // --- Threats ---
+
+  /**
+   * Compat shim for the OpenClaw realtime plugin — accepts a single event,
+   * an array of events, or an `{ events: [...] }` wrapper, passed through
+   * verbatim. Prefer ingestAuditEvents() for canonical audit entries.
+   */
+  async reportThreat(events: Record<string, unknown> | Array<Record<string, unknown>>): Promise<ThreatIngestResponse> {
+    return this.post<ThreatIngestResponse>('/v1/threats', events);
+  }
+
+  // --- Incidents ---
+
+  async replayIncidents(query?: IncidentReplayQuery): Promise<IncidentReplayResponse> {
+    return this.get<IncidentReplayResponse>('/v1/incidents/replay', query);
+  }
+
+  // --- Recall ---
+
+  async explainRecall(query: RecallExplainQuery): Promise<RecallExplainResponse> {
+    return this.get<RecallExplainResponse>('/v1/recall/explain', query);
+  }
+
   // --- Internal HTTP ---
 
   private buildQuery(params?: Record<string, unknown> | object): string {
@@ -566,5 +608,19 @@ export type {
   VerificationsResponse,
   VerificationStats,
   VerificationDetail,
+  SkillScanFinding,
+  SkillIngestFile,
+  SkillIngestOptions,
+  SkillIngestResponse,
+  SkillScanRecord,
+  SkillScansResponse,
+  ThreatIngestResponse,
+  IncidentReplayQuery,
+  IncidentEvent,
+  IncidentReplayResponse,
+  RecallExplainQuery,
+  RecallMemory,
+  RecallResult,
+  RecallExplainResponse,
 } from './types.js';
 export { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError } from './errors.js';

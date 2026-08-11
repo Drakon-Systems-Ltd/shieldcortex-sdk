@@ -817,3 +817,174 @@ describe('verification', () => {
     expect(res).toBeUndefined();
   });
 });
+
+describe('skills', () => {
+  const file = {
+    file_path: '/skills/deploy/SKILL.md',
+    skill_name: 'deploy',
+    format: 'skill-md',
+    risk_level: 'high' as const,
+    safe: false,
+    summary: 'Instruction override found',
+    // matchedText is camelCase on the wire — preserved verbatim.
+    findings: [{ pattern: 'instruction_override', severity: 'high', description: 'Override', matchedText: 'ignore previous' }],
+    scan_duration_ms: 40,
+  };
+
+  it('ingestSkillScans POSTs files + device metadata and returns 201 { upserted, total }', async () => {
+    const { calls } = mockFetchOnce(201, { upserted: 1, total: 1 });
+
+    const res = await makeClient().ingestSkillScans([file], {
+      device_id: 'a0000000-0000-4000-8000-000000000001',
+      device_name: 'Mac',
+      platform: 'darwin',
+    });
+
+    expectRequest(calls[0], {
+      method: 'POST',
+      path: '/v1/skills/ingest',
+      body: {
+        files: [file],
+        device_id: 'a0000000-0000-4000-8000-000000000001',
+        device_name: 'Mac',
+        platform: 'darwin',
+      },
+    });
+    expect(res).toEqual({ upserted: 1, total: 1 });
+  });
+
+  it('ingestSkillScans without options sends only { files }', async () => {
+    const { calls } = mockFetchOnce(201, { upserted: 1, total: 1 });
+
+    await makeClient().ingestSkillScans([file]);
+
+    expectRequest(calls[0], { method: 'POST', path: '/v1/skills/ingest', body: { files: [file] } });
+  });
+
+  it('listSkillScans filters by device_id and returns the unpaginated envelope', async () => {
+    const payload = {
+      files: [{
+        id: 1, ...file, summary: 'Instruction override found', trusted: false,
+        scanned_at: '2026-08-11T09:00:00.000Z',
+        device_id: 'a0000000-0000-4000-8000-000000000001', device_name: 'Mac',
+      }],
+      total: 1,
+    };
+    const { calls } = mockFetchOnce(200, payload);
+
+    const res = await makeClient().listSkillScans('a0000000-0000-4000-8000-000000000001');
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/skills?device_id=a0000000-0000-4000-8000-000000000001' });
+    expect(res.files[0].findings?.[0].matchedText).toBe('ignore previous');
+    expect('pagination' in res).toBe(false);
+  });
+
+  it('listSkillScans without a device sends no query string', async () => {
+    const { calls } = mockFetchOnce(200, { files: [], total: 0 });
+
+    const res = await makeClient().listSkillScans();
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/skills' });
+    expect(res.total).toBe(0);
+  });
+});
+
+describe('threats', () => {
+  it('reportThreat POSTs the events payload verbatim and returns 201 { ingested }', async () => {
+    const events = [{ type: 'prompt_injection', content: 'ignore previous', ts: '2026-08-11T09:00:00.000Z' }];
+    const { calls } = mockFetchOnce(201, { ingested: 1 });
+
+    const res = await makeClient().reportThreat(events);
+
+    expectRequest(calls[0], { method: 'POST', path: '/v1/threats', body: events });
+    expect(res.ingested).toBe(1);
+  });
+
+  it('reportThreat accepts the { events } wrapper shape unchanged', async () => {
+    const payload = { events: [{ type: 'prompt_injection' }] };
+    const { calls } = mockFetchOnce(201, { ingested: 1 });
+
+    await makeClient().reportThreat(payload);
+
+    expectRequest(calls[0], { method: 'POST', path: '/v1/threats', body: payload });
+  });
+});
+
+describe('incidents', () => {
+  it('replayIncidents passes from/to wire params and returns the merged timeline', async () => {
+    const payload = {
+      events: [{
+        id: 'audit-9', timestamp: '2026-08-11T09:00:00.000Z', stream: 'audit',
+        event_type: 'firewall_block', severity: 'critical',
+        summary: 'Blocked prompt injection', details: null,
+        device_uuid: 'a0000000-0000-4000-8000-000000000001', device_name: 'Mac',
+        source_identifier: 'cortex-memory', project: null, memory_external_id: null,
+        metadata: {},
+      }],
+      total: 1,
+      summary: { audit: 1, verification: 0, sync: 0, memory: 0 },
+      coverage: { sources: ['audit_logs'], note: 'All streams scanned.' },
+    };
+    const { calls } = mockFetchOnce(200, payload);
+
+    const res = await makeClient().replayIncidents({
+      from: '2026-08-10T00:00:00.000Z',
+      to: '2026-08-11T00:00:00.000Z',
+      limit: 300,
+    });
+
+    expectRequest(calls[0], {
+      method: 'GET',
+      path: '/v1/incidents/replay?from=2026-08-10T00%3A00%3A00.000Z&to=2026-08-11T00%3A00%3A00.000Z&limit=300',
+    });
+    expect(res.events[0].stream).toBe('audit');
+    expect(res.summary.audit).toBe(1);
+  });
+
+  it('replayIncidents returns the empty envelope (200, not 404) for an unknown device', async () => {
+    const payload = {
+      events: [],
+      total: 0,
+      summary: { audit: 0, verification: 0, sync: 0, memory: 0 },
+      coverage: { sources: [], note: 'Unknown device_id — no events matched.' },
+    };
+    const { calls } = mockFetchOnce(200, payload);
+
+    const res = await makeClient().replayIncidents({ device_id: 'b0000000-0000-4000-8000-00000000dead' });
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/incidents/replay?device_id=b0000000-0000-4000-8000-00000000dead' });
+    expect(res.events).toEqual([]);
+    expect(res.coverage.note).toContain('Unknown device_id');
+  });
+});
+
+describe('recall', () => {
+  it('explainRecall passes the query and returns scored results with breakdowns', async () => {
+    const payload = {
+      query: 'release process',
+      project: 'shieldcortex',
+      total_candidates: 12,
+      results: [{
+        memory: {
+          external_id: 'mem-1', title: 'Release checklist', content: 'Tag push auto-publishes.',
+          project: 'shieldcortex', category: 'process', type: 'reference', tags: ['release'],
+          salience: 0.8, scope: 'project', trust_score: 0.9,
+          updated_at: '2026-08-01T00:00:00.000Z', last_synced_at: '2026-08-10T00:00:00.000Z',
+          device_uuid: 'a0000000-0000-4000-8000-000000000001', device_name: 'Mac', device_platform: 'darwin',
+        },
+        score: 0.91,
+        matched_terms: ['release'],
+        reasons: ['exact phrase match'],
+        linked_entities: [{ name: 'ShieldCortex', type: 'project', role: 'subject' }],
+        breakdown: { lexical: 0.4, exact_phrase: 0.2, salience: 0.15, recency: 0.1, trust: 0.04, project: 0.02 },
+      }],
+    };
+    const { calls } = mockFetchOnce(200, payload);
+
+    const res = await makeClient().explainRecall({ query: 'release process', project: 'shieldcortex', limit: 8 });
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/recall/explain?query=release+process&project=shieldcortex&limit=8' });
+    expect(res.total_candidates).toBe(12);
+    expect(res.results[0].breakdown.exact_phrase).toBe(0.2);
+  });
+});
