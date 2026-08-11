@@ -11,6 +11,23 @@ import type {
   AuditLogEntry,
   AuditResponse,
   AuditStats,
+  AuditTrendsQuery,
+  AuditTrendsResponse,
+  AuditExportQuery,
+  AuditExportResult,
+  AuditIngestEntry,
+  IngestResponse,
+  IronDomeStatsQuery,
+  IronDomeStats,
+  IronDomeEventsQuery,
+  IronDomeEventsResponse,
+  AuditExportsQuery,
+  AuditExportsResponse,
+  AuditExportManifestDetail,
+  VerifyAuditExportInput,
+  VerifyAuditExportResponse,
+  AuditExportVerificationsResponse,
+  PageQuery,
   QuarantineQuery,
   QuarantineResponse,
   CreateKeyInput,
@@ -38,6 +55,30 @@ import type {
   IronDomePolicy,
   IronDomePoliciesResponse,
   PolicySyncResponse,
+  VerificationSubmitInput,
+  VerificationSubmitResult,
+  VerificationsQuery,
+  VerificationsResponse,
+  VerificationStats,
+  VerificationDetail,
+  SkillIngestFile,
+  SkillIngestOptions,
+  SkillIngestResponse,
+  SkillScansResponse,
+  ThreatIngestResponse,
+  IncidentReplayQuery,
+  IncidentReplayResponse,
+  RecallExplainQuery,
+  RecallExplainResponse,
+  SyncHealthResponse,
+  PushMemoriesInput,
+  PushMemoriesResponse,
+  SyncedMemoriesQuery,
+  SyncedMemoriesResponse,
+  PushMemoryGraphInput,
+  PushMemoryGraphResponse,
+  LicenseInfo,
+  RegenerateLicenseResponse,
 } from './types.js';
 import { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError } from './errors.js';
 
@@ -78,6 +119,66 @@ export class ShieldCortex {
 
   async getAuditStats(timeRange?: '24h' | '7d' | '30d'): Promise<AuditStats> {
     return this.get<AuditStats>('/v1/audit/stats', timeRange ? { timeRange } : undefined);
+  }
+
+  async getAuditTrends(query?: AuditTrendsQuery): Promise<AuditTrendsResponse> {
+    return this.get<AuditTrendsResponse>('/v1/audit/trends', query);
+  }
+
+  /**
+   * Download audit logs as a file body (CSV text or JSON). Unlike every other
+   * endpoint this does NOT return a JSON envelope — the raw body is handed
+   * back verbatim alongside the parsed X-ShieldCortex-Export-* integrity headers.
+   */
+  async exportAuditLogs(query?: AuditExportQuery): Promise<AuditExportResult> {
+    const params = { ...query, format: query?.format ?? 'json' };
+    const res = await this.requestRaw(`/v1/audit/export${this.buildQuery(params)}`);
+    const countHeader = res.headers.get('X-ShieldCortex-Export-Count');
+    const count = countHeader?.trim() ? Number(countHeader) : NaN;
+    return {
+      content: await res.text(),
+      headers: {
+        // Absent integrity headers stay undefined (never '') — the export is unverifiable.
+        sha256: res.headers.get('X-ShieldCortex-Export-SHA256') ?? undefined,
+        count: Number.isNaN(count) ? undefined : count,
+        generatedAt: res.headers.get('X-ShieldCortex-Export-Generated-At') ?? '',
+        manifestId: res.headers.get('X-ShieldCortex-Export-Manifest-Id') ?? undefined,
+        signature: res.headers.get('X-ShieldCortex-Export-Signature') ?? undefined,
+        signatureAlgorithm: res.headers.get('X-ShieldCortex-Export-Signature-Alg') ?? '',
+        manifestPersisted: res.headers.get('X-ShieldCortex-Export-Manifest-Persisted') === '1',
+      },
+    };
+  }
+
+  async ingestAuditEvents(entries: AuditIngestEntry[]): Promise<IngestResponse> {
+    return this.post<IngestResponse>('/v1/audit/ingest', { entries });
+  }
+
+  async getIronDomeStats(query?: IronDomeStatsQuery): Promise<IronDomeStats> {
+    return this.get<IronDomeStats>('/v1/audit/iron-dome/stats', query);
+  }
+
+  async getIronDomeEvents(query?: IronDomeEventsQuery): Promise<IronDomeEventsResponse> {
+    return this.get<IronDomeEventsResponse>('/v1/audit/iron-dome/events', query);
+  }
+
+  async listAuditExports(query?: AuditExportsQuery): Promise<AuditExportsResponse> {
+    return this.get<AuditExportsResponse>('/v1/audit/exports', query);
+  }
+
+  async getAuditExportManifest(manifestId: string): Promise<AuditExportManifestDetail> {
+    return this.get<AuditExportManifestDetail>(`/v1/audit/exports/${manifestId}`);
+  }
+
+  async verifyAuditExport(manifestId: string, input?: VerifyAuditExportInput): Promise<VerifyAuditExportResponse> {
+    return this.post<VerifyAuditExportResponse>(`/v1/audit/exports/${manifestId}/verify`, input ?? {});
+  }
+
+  async listAuditExportVerifications(
+    manifestId: string,
+    query?: PageQuery
+  ): Promise<AuditExportVerificationsResponse> {
+    return this.get<AuditExportVerificationsResponse>(`/v1/audit/exports/${manifestId}/verifications`, query);
   }
 
   // --- Quarantine ---
@@ -143,10 +244,18 @@ export class ShieldCortex {
 
   // --- Billing ---
 
+  /**
+   * @deprecated Self-serve plans retired 2026-07 (Free + Enterprise model);
+   * retained for grandfathered licence holders.
+   */
   async createCheckoutSession(): Promise<CheckoutResponse> {
     return this.post<CheckoutResponse>('/v1/billing/checkout', {});
   }
 
+  /**
+   * @deprecated Self-serve plans retired 2026-07 (Free + Enterprise model);
+   * retained for grandfathered licence holders.
+   */
   async createPortalSession(): Promise<PortalResponse> {
     return this.post<PortalResponse>('/v1/billing/portal', {});
   }
@@ -323,17 +432,110 @@ export class ShieldCortex {
     await this.del(`/v1/iron-dome/policies/${id}`);
   }
 
+  // --- Verification (Enterprise) ---
+
+  async submitVerification(input: VerificationSubmitInput): Promise<VerificationSubmitResult> {
+    return this.post<VerificationSubmitResult>('/v1/verify', input);
+  }
+
+  async listVerifications(query?: VerificationsQuery): Promise<VerificationsResponse> {
+    return this.get<VerificationsResponse>('/v1/verify', query);
+  }
+
+  async getVerificationStats(): Promise<VerificationStats> {
+    return this.get<VerificationStats>('/v1/verify/stats');
+  }
+
+  async getVerification(id: number): Promise<VerificationDetail> {
+    return this.get<VerificationDetail>(`/v1/verify/${id}`);
+  }
+
+  async deleteVerification(id: number): Promise<void> {
+    await this.del(`/v1/verify/${id}`);
+  }
+
+  // --- Skills ---
+
+  async ingestSkillScans(files: SkillIngestFile[], options?: SkillIngestOptions): Promise<SkillIngestResponse> {
+    return this.post<SkillIngestResponse>('/v1/skills/ingest', { files, ...options });
+  }
+
+  async listSkillScans(deviceId?: string): Promise<SkillScansResponse> {
+    return this.get<SkillScansResponse>('/v1/skills', deviceId ? { device_id: deviceId } : undefined);
+  }
+
+  // --- Threats ---
+
+  /**
+   * Compat shim for the OpenClaw realtime plugin — accepts a single event,
+   * an array of events, or an `{ events: [...] }` wrapper, passed through
+   * verbatim. Max 100 events per call — the server silently truncates any
+   * extras. Prefer ingestAuditEvents() for canonical audit entries.
+   */
+  async reportThreat(events: Record<string, unknown> | Array<Record<string, unknown>>): Promise<ThreatIngestResponse> {
+    return this.post<ThreatIngestResponse>('/v1/threats', events);
+  }
+
+  // --- Incidents ---
+
+  async replayIncidents(query?: IncidentReplayQuery): Promise<IncidentReplayResponse> {
+    return this.get<IncidentReplayResponse>('/v1/incidents/replay', query);
+  }
+
+  // --- Recall ---
+
+  async explainRecall(query: RecallExplainQuery): Promise<RecallExplainResponse> {
+    return this.get<RecallExplainResponse>('/v1/recall/explain', query);
+  }
+
+  // --- Sync ---
+
+  async getSyncHealth(): Promise<SyncHealthResponse> {
+    return this.get<SyncHealthResponse>('/v1/sync/health');
+  }
+
+  async pushMemories(input: PushMemoriesInput): Promise<PushMemoriesResponse> {
+    return this.post<PushMemoriesResponse>('/v1/sync/memories', input);
+  }
+
+  async listSyncedMemories(query?: SyncedMemoriesQuery): Promise<SyncedMemoriesResponse> {
+    // The server coerces include_deleted with Boolean(value), so ANY present
+    // value — including the string "false" — enables deleted-memory inclusion.
+    // Omit the param entirely unless it is exactly true.
+    const params = query && query.include_deleted !== true
+      ? { ...query, include_deleted: undefined }
+      : query;
+    return this.get<SyncedMemoriesResponse>('/v1/sync/memories', params);
+  }
+
+  async pushMemoryGraph(input: PushMemoryGraphInput): Promise<PushMemoryGraphResponse> {
+    return this.post<PushMemoryGraphResponse>('/v1/sync/graph', input);
+  }
+
+  // --- License ---
+
+  async getLicense(): Promise<LicenseInfo> {
+    return this.get<LicenseInfo>('/v1/license');
+  }
+
+  async regenerateLicense(): Promise<RegenerateLicenseResponse> {
+    return this.post<RegenerateLicenseResponse>('/v1/license/regenerate', {});
+  }
+
   // --- Internal HTTP ---
 
-  private async get<T = unknown>(path: string, params?: Record<string, unknown> | object): Promise<T> {
-    const qs = params
+  private buildQuery(params?: Record<string, unknown> | object): string {
+    return params
       ? '?' + new URLSearchParams(
           Object.entries(params)
             .filter(([, v]) => v !== undefined)
             .map(([k, v]) => [k, String(v)])
         ).toString()
       : '';
-    return this.request<T>(`${path}${qs}`);
+  }
+
+  private async get<T = unknown>(path: string, params?: Record<string, unknown> | object): Promise<T> {
+    return this.request<T>(`${path}${this.buildQuery(params)}`);
   }
 
   private async post<T = unknown>(path: string, body: unknown): Promise<T> {
@@ -352,7 +554,8 @@ export class ShieldCortex {
     await this.request(path, { method: 'DELETE' });
   }
 
-  private async request<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+  /** Fetch + error mapping, without consuming the response body on success. */
+  private async requestRaw(path: string, init?: RequestInit): Promise<Response> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       ...init,
       headers: {
@@ -376,55 +579,15 @@ export class ShieldCortex {
       throw new ShieldCortexError(`API error: ${res.status}`, res.status, body);
     }
 
+    return res;
+  }
+
+  private async request<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+    const res = await this.requestRaw(path, init);
     return res.json() as Promise<T>;
   }
 }
 
-// Re-export types and errors
-export type {
-  ShieldCortexOptions,
-  ScanInput,
-  ScanResult,
-  BatchItem,
-  BatchOptions,
-  BatchResult,
-  SkillScanResult,
-  SkillThreat,
-  AuditQuery,
-  AuditEntry,
-  AuditLogEntry,
-  AuditResponse,
-  AuditStats,
-  QuarantineQuery,
-  QuarantineItem,
-  QuarantineResponse,
-  CreateKeyInput,
-  KeyInfo,
-  CreateKeyResponse,
-  KeyListItem,
-  KeyListResponse,
-  TeamInfo,
-  TeamMember,
-  MembersResponse,
-  UsageResponse,
-  Invite,
-  InviteListResponse,
-  CheckoutResponse,
-  PortalResponse,
-  Device,
-  AlertRule,
-  CreateAlertInput,
-  Webhook,
-  CreateWebhookResponse,
-  TestWebhookResponse,
-  WebhookDelivery,
-  FirewallRule,
-  InjectionPattern,
-  InjectionPatternsResponse,
-  PatternSyncResponse,
-  PatternTestResult,
-  IronDomePolicy,
-  IronDomePoliciesResponse,
-  PolicySyncResponse,
-} from './types.js';
+// Re-export types and errors (types.ts is types-only, so this is exhaustive by construction)
+export type * from './types.js';
 export { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError } from './errors.js';

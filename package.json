@@ -1,6 +1,6 @@
 {
   "name": "shieldcortex-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Official TypeScript SDK for the ShieldCortex API",
   "type": "module",
   "main": "dist/index.js",
@@ -13,13 +13,24 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "tsc -p tsconfig.test.json --noEmit && vitest run",
     "prepublishOnly": "npm run build"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "devDependencies": {
-    "typescript": "^5.7.0"
+    "@types/node": "^20.19.43",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.10"
   },
-  "keywords": ["shieldcortex", "ai", "security", "memory", "firewall"],
+  "keywords": [
+    "shieldcortex",
+    "ai",
+    "security",
+    "memory",
+    "firewall"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
