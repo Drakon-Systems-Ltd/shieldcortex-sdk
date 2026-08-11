@@ -3,9 +3,9 @@
  *
  * Every `[method, pathTemplate]` pair the TypeScript client covers, path
  * params normalised to `{id}` / `{manifestId}` / `{uuid}`. The Python SDK
- * carries an identical manifest — a divergence between the two lists (or
- * between a list and its client) is a lockstep drift and must be resolved
- * deliberately, never silently.
+ * enforces the same manifest (tests/endpoint_manifest.py); keep the two
+ * lists in lockstep — a divergence between them (or between a list and its
+ * client) is a drift and must be resolved deliberately, never silently.
  *
  * Wire contract reference: docs/plans/sdk-lockstep-contract.md.
  */

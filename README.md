@@ -134,10 +134,12 @@ await sc.reviewQuarantine(43, 'reject');
 
 ## API Coverage
 
-The client covers the full ShieldCortex v1 API surface. Beyond the methods
-documented above, the following groups are available — every method is typed
-and follows the same pattern (`get*`/`list*` for reads, `create*`/`update*`/
-`delete*` for writes):
+The client covers the full customer API surface documented in the lockstep
+contract — 77 endpoints. The server also mounts additional dashboard- and
+session-scoped `/v1` routes outside SDK scope. Beyond the methods documented
+above, the following groups are available — every method is typed and follows
+the same pattern (`get*`/`list*` for reads, `create*`/`update*`/`delete*` for
+writes):
 
 | Group | Methods |
 |-------|---------|

@@ -499,7 +499,13 @@ export class ShieldCortex {
   }
 
   async listSyncedMemories(query?: SyncedMemoriesQuery): Promise<SyncedMemoriesResponse> {
-    return this.get<SyncedMemoriesResponse>('/v1/sync/memories', query);
+    // The server coerces include_deleted with Boolean(value), so ANY present
+    // value — including the string "false" — enables deleted-memory inclusion.
+    // Omit the param entirely unless it is exactly true.
+    const params = query && query.include_deleted !== true
+      ? { ...query, include_deleted: undefined }
+      : query;
+    return this.get<SyncedMemoriesResponse>('/v1/sync/memories', params);
   }
 
   async pushMemoryGraph(input: PushMemoryGraphInput): Promise<PushMemoryGraphResponse> {

@@ -981,6 +981,11 @@ export interface SyncedMemoriesQuery {
   device_id?: string;
   project?: string;
   search?: string;
+  /**
+   * `false` and `undefined` are equivalent: the server treats any PRESENT
+   * value (even the string "false") as enabling deleted-memory inclusion,
+   * so the client only sends this param when it is exactly `true`.
+   */
   include_deleted?: boolean;
   limit?: number;
   offset?: number;

@@ -2,8 +2,10 @@
 
 ## 0.2.0 — 2026-08-11
 
-Full lockstep with the ShieldCortex v1 API (77 endpoints), guarded by a
-cross-SDK parity manifest shared with the Python SDK.
+Covers the full customer API surface documented in the lockstep contract
+(77 endpoints), guarded by a cross-SDK parity manifest shared with the
+Python SDK. Additional dashboard- and session-scoped `/v1` routes exist
+server-side outside SDK scope.
 
 ### Added
 
@@ -38,8 +40,8 @@ cross-SDK parity manifest shared with the Python SDK.
   interface instead of an inline `{ limit?, offset? }` type.
 - All interfaces in `src/types.ts` are now re-exported via
   `export type * from './types.js'` — the exported type surface is a strict
-  superset of 0.1.0 (adds `SkillScanInput`, `PageQuery`, and every
-  previously-unexported response sub-type).
+  superset of 0.1.0. Exactly two names are new: `SkillScanInput` (previously
+  defined but never re-exported) and `PageQuery`.
 
 ### Deprecated
 

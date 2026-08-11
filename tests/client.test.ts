@@ -1100,6 +1100,15 @@ describe('sync', () => {
     expect(res.pagination.hasMore).toBe(false);
   });
 
+  it('listSyncedMemories OMITS include_deleted:false — the server Boolean()-coerces any present value, so "false" would enable it', async () => {
+    const { calls } = mockFetchOnce(200, { memories: [], total: 0, pagination: { limit: 50, offset: 0, hasMore: false } });
+
+    await makeClient().listSyncedMemories({ project: 'shieldcortex', include_deleted: false });
+
+    expectRequest(calls[0], { method: 'GET', path: '/v1/sync/memories?project=shieldcortex' });
+    expect(calls[0].url).not.toContain('include_deleted');
+  });
+
   it('listSyncedMemories tolerates the unknown-device branch which OMITS summary entirely', async () => {
     mockFetchOnce(200, { memories: [], total: 0, pagination: { limit: 50, offset: 0, hasMore: false } });
 
