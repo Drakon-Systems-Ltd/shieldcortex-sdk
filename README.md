@@ -136,10 +136,9 @@ await sc.reviewQuarantine(43, 'reject');
 
 The client covers the full customer API surface documented in the lockstep
 contract — 77 endpoints. The server also mounts additional dashboard- and
-session-scoped `/v1` routes outside SDK scope. Beyond the methods documented
-above, the following groups are available — every method is typed and follows
-the same pattern (`get*`/`list*` for reads, `create*`/`update*`/`delete*` for
-writes):
+session-scoped `/v1` routes outside SDK scope. The table below is the
+complete method inventory — every method is typed and follows the same
+pattern (`get*`/`list*` for reads, `create*`/`update*`/`delete*` for writes):
 
 | Group | Methods |
 |-------|---------|

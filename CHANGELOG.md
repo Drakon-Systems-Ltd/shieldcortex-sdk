@@ -9,13 +9,19 @@ server-side outside SDK scope.
 
 ### Added
 
-- **Audit surface**: `getAuditTrends`, `exportAuditLogs` (file download with
-  parsed `X-ShieldCortex-Export-*` integrity headers), `ingestAuditEvents`,
+- **Audit surface**: `getAuditTrends`, `exportAuditLogs`, `ingestAuditEvents`,
   `getIronDomeStats`, `getIronDomeEvents`, and the export-manifest chain
   (`listAuditExports`, `getAuditExportManifest`, `verifyAuditExport`,
-  `listAuditExportVerifications`).
+  `listAuditExportVerifications` — the latter takes the exported `PageQuery`
+  interface). `exportAuditLogs` returns the raw file body plus the parsed
+  `X-ShieldCortex-Export-*` integrity headers; absent `sha256`/`signature`/
+  `manifestId` headers surface as `undefined` (never `''`), meaning the
+  export is unverifiable — treat it accordingly.
 - **Verification (Enterprise)**: `submitVerification`, `listVerifications`,
-  `getVerificationStats`, `getVerification`, `deleteVerification`.
+  `getVerificationStats`, `getVerification`, `deleteVerification`. On
+  `VerificationSubmitResult`, `threats_detected` (like `verdict`,
+  `confidence`, `action`, `duration_ms`) is optional — the server omits keys
+  it leaves undefined; only cache hits default `threats_detected` to `[]`.
 - **Skills**: `ingestSkillScans`, `listSkillScans`.
 - **Threats**: `reportThreat` (OpenClaw realtime compat shim, max 100 events
   per call).
@@ -29,19 +35,9 @@ server-side outside SDK scope.
 
 ### Changed
 
-- `AuditExportHeaders.sha256` / `.signature` are now `string | undefined` and
-  `.count` is `number | undefined`: an absent header surfaces as `undefined`
-  (previously `''` / `0`), meaning the export is unverifiable — treat it
-  accordingly rather than comparing against an empty string.
-- `VerificationSubmitResult.threats_detected` (like `verdict`, `confidence`,
-  `action`, `duration_ms`) is optional — the server omits keys it leaves
-  undefined; only cache hits default `threats_detected` to `[]`.
-- `listAuditExportVerifications` takes the named, exported `PageQuery`
-  interface instead of an inline `{ limit?, offset? }` type.
 - All interfaces in `src/types.ts` are now re-exported via
-  `export type * from './types.js'` — the exported type surface is a strict
-  superset of 0.1.0. Exactly two names are new: `SkillScanInput` (previously
-  defined but never re-exported) and `PageQuery`.
+  `export type * from './types.js'`. Every type exported by 0.1.0 is still
+  exported — the type surface is a strict superset.
 
 ### Deprecated
 
@@ -49,7 +45,7 @@ server-side outside SDK scope.
   retired in July 2026 (Free + Enterprise model); retained for grandfathered
   licence holders.
 
-## 0.1.0
+## 0.1.0 — 2026-03-12
 
 Initial release: `scan`, `scanBatch`, `scanSkill`, audit logs/stats,
 quarantine, API keys, teams, invites, billing, devices, alerts, webhooks,

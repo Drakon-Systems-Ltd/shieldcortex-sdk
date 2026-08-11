@@ -556,16 +556,19 @@ describe('audit export (file body)', () => {
 
     expect(res.headers.sha256).toBeUndefined();
     expect(res.headers.signature).toBeUndefined();
+    expect(res.headers.manifestId).toBeUndefined();
     expect(res.headers.count).toBeUndefined();
     expect(res.headers.manifestPersisted).toBe(false);
   });
 
-  it('exportAuditLogs treats a non-numeric count header as undefined', async () => {
+  it('exportAuditLogs treats a non-numeric or empty count header as undefined', async () => {
     mockFetch(new Response('[]', { status: 200, headers: { 'X-ShieldCortex-Export-Count': 'not-a-number' } }));
+    const nonNumeric = await makeClient().exportAuditLogs();
+    expect(nonNumeric.headers.count).toBeUndefined();
 
-    const res = await makeClient().exportAuditLogs();
-
-    expect(res.headers.count).toBeUndefined();
+    mockFetch(new Response('[]', { status: 200, headers: { 'X-ShieldCortex-Export-Count': '  ' } }));
+    const empty = await makeClient().exportAuditLogs();
+    expect(empty.headers.count).toBeUndefined();
   });
 });
 

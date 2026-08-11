@@ -20,9 +20,18 @@ const source = readFileSync(
 // source can be matched against the manifest's placeholder form.
 const normalised = source.replace(/\$\{(\w+)\}/g, '{$1}');
 
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Anchored on the closing delimiter so a path that merely prefixes another
+// (e.g. /v1/audit inside /v1/audit/stats) cannot satisfy the check. In the
+// client source a path template ends at a quote, a backtick, or a `$` (the
+// `${this.buildQuery(...)}` interpolation, which normalisation leaves alone).
+const appearsInSource = (path: string) =>
+  new RegExp(`${escapeRegExp(path)}["'\`$?]`).test(normalised);
+
 describe('cross-SDK endpoint parity manifest', () => {
   it('every COVERED path template appears in src/index.ts', () => {
-    const missing = COVERED.filter(([, path]) => !normalised.includes(path));
+    const missing = COVERED.filter(([, path]) => !appearsInSource(path));
     expect(missing).toEqual([]);
   });
 

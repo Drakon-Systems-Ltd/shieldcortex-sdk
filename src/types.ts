@@ -222,17 +222,23 @@ export interface AuditExportQuery {
 /**
  * Parsed X-ShieldCortex-Export-* integrity headers.
  *
- * `sha256` and `signature` are load-bearing: when the header is absent the
- * field is `undefined` (never ''), meaning the export CANNOT be verified —
- * treat it as unverifiable rather than comparing against an empty string.
+ * `sha256`, `signature`, and `manifestId` are load-bearing: when the header
+ * is absent the field is `undefined` (never ''), meaning the export CANNOT
+ * be verified — treat it as unverifiable rather than comparing against an
+ * empty string or building a manifest URL from ''.
  */
 export interface AuditExportHeaders {
   /** Hex SHA-256 of the exact body. `undefined` when the header is absent — export is unverifiable. */
   sha256: string | undefined;
-  /** Entry count. `undefined` when the header is absent or non-numeric. */
+  /** Entry count. `undefined` when the header is absent, empty, or non-numeric. */
   count: number | undefined;
   generatedAt: string;
-  manifestId: string;
+  /**
+   * Manifest id (`exp_<32hex>`) for getAuditExportManifest / verifyAuditExport.
+   * `undefined` when the header is absent — never '' (which would build a
+   * malformed manifest URL).
+   */
+  manifestId: string | undefined;
   /** HMAC-SHA256 hex signature. `undefined` when the header is absent — export is unverifiable. */
   signature: string | undefined;
   signatureAlgorithm: string;

@@ -134,15 +134,15 @@ export class ShieldCortex {
     const params = { ...query, format: query?.format ?? 'json' };
     const res = await this.requestRaw(`/v1/audit/export${this.buildQuery(params)}`);
     const countHeader = res.headers.get('X-ShieldCortex-Export-Count');
-    const count = countHeader === null ? undefined : Number(countHeader);
+    const count = countHeader?.trim() ? Number(countHeader) : NaN;
     return {
       content: await res.text(),
       headers: {
         // Absent integrity headers stay undefined (never '') — the export is unverifiable.
         sha256: res.headers.get('X-ShieldCortex-Export-SHA256') ?? undefined,
-        count: count !== undefined && Number.isNaN(count) ? undefined : count,
+        count: Number.isNaN(count) ? undefined : count,
         generatedAt: res.headers.get('X-ShieldCortex-Export-Generated-At') ?? '',
-        manifestId: res.headers.get('X-ShieldCortex-Export-Manifest-Id') ?? '',
+        manifestId: res.headers.get('X-ShieldCortex-Export-Manifest-Id') ?? undefined,
         signature: res.headers.get('X-ShieldCortex-Export-Signature') ?? undefined,
         signatureAlgorithm: res.headers.get('X-ShieldCortex-Export-Signature-Alg') ?? '',
         manifestPersisted: res.headers.get('X-ShieldCortex-Export-Manifest-Persisted') === '1',

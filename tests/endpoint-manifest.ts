@@ -10,7 +10,9 @@
  * Wire contract reference: docs/plans/sdk-lockstep-contract.md.
  */
 
-export const COVERED: ReadonlyArray<[string, string]> = [
+export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+
+export const COVERED: ReadonlyArray<[HttpMethod, string]> = [
   // Scanning
   ['POST', '/v1/scan'],
   ['POST', '/v1/scan/batch'],
@@ -111,7 +113,7 @@ export const COVERED: ReadonlyArray<[string, string]> = [
   ['POST', '/v1/license/regenerate'],
 ];
 
-export const DEFERRED: ReadonlyArray<[string, string]> = [
+export const DEFERRED: ReadonlyArray<[HttpMethod, string]> = [
   // Audit verification-export download sub-chain (CLI tooling, deliberately deferred):
   ['GET', '/v1/audit/exports/{manifestId}/verifications/export'],
   ['GET', '/v1/audit/exports/{manifestId}/verification-exports'],
@@ -130,5 +132,6 @@ export const POLICY_NOTES = `
    consistency was chosen over cross-SDK identity.
 2. Audit export: both SDKs return { content, headers } from the audit export
    download (raw file body + parsed X-ShieldCortex-Export-* integrity
-   headers). The Python SDK is being aligned to this shape in its final batch.
+   headers); absent sha256/signature headers surface as undefined/None,
+   meaning the export is unverifiable.
 `;
