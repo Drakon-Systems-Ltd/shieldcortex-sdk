@@ -730,18 +730,22 @@ describe('verification', () => {
 
     expectRequest(calls[0], { method: 'POST', path: '/v1/verify', body: submitInput });
     expect(res.verdict).toBe('THREAT');
-    expect(res.threats_detected[0].type).toBe('prompt_injection');
+    expect(res.threats_detected?.[0].type).toBe('prompt_injection');
     expect(res.cached).toBe(false);
   });
 
   it('submitVerification tolerates omitted optional result keys (never null)', async () => {
-    // Failed-service results omit verdict/confidence/action/duration_ms entirely.
-    mockFetchOnce(200, { id: 32, threats_detected: [], cached: false, status: 'pending' });
+    // Failed-service results omit verdict/confidence/action/duration_ms entirely —
+    // and threats_detected too (verification.ts declares it optional; only the
+    // cache-hit path defaults it to []).
+    mockFetchOnce(200, { id: 32, cached: false, status: 'pending' });
 
     const res = await makeClient().submitVerification(submitInput);
 
     expect(res.verdict).toBeUndefined();
     expect('confidence' in res).toBe(false);
+    expect(res.threats_detected).toBeUndefined();
+    expect('threats_detected' in res).toBe(false);
     expect(res.status).toBe('pending');
   });
 

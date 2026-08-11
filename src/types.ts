@@ -680,7 +680,7 @@ export interface VerificationSubmitResult {
   id: number;
   verdict?: 'SAFE' | 'SUSPICIOUS' | 'THREAT';
   confidence?: number;
-  threats_detected: VerificationThreat[];
+  threats_detected?: VerificationThreat[];
   action?: 'ALERT' | 'NONE';
   cached: boolean;
   duration_ms?: number;
