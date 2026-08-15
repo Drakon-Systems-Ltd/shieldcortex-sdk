@@ -233,3 +233,7 @@ try {
 ## Licence
 
 MIT
+
+## Release alignment
+
+This SDK targets the ShieldCortex Cloud API. Coordinated with core **v4.52.0** / cloud **v2.18.0**. Client package version is independent of core (`0.3.0` on this cut).
