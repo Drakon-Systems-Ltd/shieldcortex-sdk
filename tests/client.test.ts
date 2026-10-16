@@ -39,6 +39,41 @@ describe('constructor / transport', () => {
   });
 });
 
+describe('path parameter encoding', () => {
+  const id = 'a/b?c#d e%';
+  const encoded = 'a%2Fb%3Fc%23d%20e%25';
+
+  it('encodes the audit export manifest id', async () => {
+    const { calls } = mockFetchOnce(200, {});
+    await makeClient().getAuditExportManifest(id);
+    expectRequest(calls[0], { method: 'GET', path: `/v1/audit/exports/${encoded}` });
+  });
+
+  it('encodes the audit export verification id', async () => {
+    const { calls } = mockFetchOnce(200, {});
+    await makeClient().verifyAuditExport(id);
+    expectRequest(calls[0], { method: 'POST', path: `/v1/audit/exports/${encoded}/verify`, body: {} });
+  });
+
+  it('encodes the audit export verification list id without changing its query string', async () => {
+    const { calls } = mockFetchOnce(200, {});
+    await makeClient().listAuditExportVerifications(id, { limit: 5, offset: 2 });
+    expectRequest(calls[0], { method: 'GET', path: `/v1/audit/exports/${encoded}/verifications?limit=5&offset=2` });
+  });
+
+  it('encodes the device uuid', async () => {
+    const { calls } = mockFetchOnce(200, {});
+    await makeClient().updateDevice(id, 'Renamed');
+    expectRequest(calls[0], { method: 'PATCH', path: `/v1/devices/${encoded}`, body: { name: 'Renamed' } });
+  });
+
+  it('keeps numeric ids unchanged', async () => {
+    const { calls } = mockFetchOnce(200, {});
+    await makeClient().deleteAlert(42);
+    expectRequest(calls[0], { method: 'DELETE', path: '/v1/alerts/42' });
+  });
+});
+
 describe('scanning', () => {
   it('scan POSTs the input to /v1/scan and returns the parsed result', async () => {
     const result = {

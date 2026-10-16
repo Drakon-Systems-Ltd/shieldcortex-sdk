@@ -84,6 +84,8 @@ import { ShieldCortexError, AuthError, RateLimitError, ValidationError, Forbidde
 
 const DEFAULT_BASE_URL = 'https://api.shieldcortex.ai';
 
+const seg = (value: string | number): string => encodeURIComponent(String(value));
+
 export class ShieldCortex {
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -114,7 +116,7 @@ export class ShieldCortex {
   }
 
   async getAuditEntry(id: number): Promise<AuditEntry> {
-    return this.get<AuditEntry>(`/v1/audit/${id}`);
+    return this.get<AuditEntry>(`/v1/audit/${seg(id)}`);
   }
 
   async getAuditStats(timeRange?: '24h' | '7d' | '30d'): Promise<AuditStats> {
@@ -167,18 +169,18 @@ export class ShieldCortex {
   }
 
   async getAuditExportManifest(manifestId: string): Promise<AuditExportManifestDetail> {
-    return this.get<AuditExportManifestDetail>(`/v1/audit/exports/${manifestId}`);
+    return this.get<AuditExportManifestDetail>(`/v1/audit/exports/${seg(manifestId)}`);
   }
 
   async verifyAuditExport(manifestId: string, input?: VerifyAuditExportInput): Promise<VerifyAuditExportResponse> {
-    return this.post<VerifyAuditExportResponse>(`/v1/audit/exports/${manifestId}/verify`, input ?? {});
+    return this.post<VerifyAuditExportResponse>(`/v1/audit/exports/${seg(manifestId)}/verify`, input ?? {});
   }
 
   async listAuditExportVerifications(
     manifestId: string,
     query?: PageQuery
   ): Promise<AuditExportVerificationsResponse> {
-    return this.get<AuditExportVerificationsResponse>(`/v1/audit/exports/${manifestId}/verifications`, query);
+    return this.get<AuditExportVerificationsResponse>(`/v1/audit/exports/${seg(manifestId)}/verifications`, query);
   }
 
   // --- Quarantine ---
@@ -188,7 +190,7 @@ export class ShieldCortex {
   }
 
   async reviewQuarantine(id: number, action: 'approve' | 'reject'): Promise<void> {
-    await this.post(`/v1/quarantine/${id}/review`, { action });
+    await this.post(`/v1/quarantine/${seg(id)}/review`, { action });
   }
 
   // --- API Keys ---
@@ -202,7 +204,7 @@ export class ShieldCortex {
   }
 
   async revokeApiKey(id: number): Promise<void> {
-    await this.del(`/v1/keys/${id}`);
+    await this.del(`/v1/keys/${seg(id)}`);
   }
 
   // --- Teams ---
@@ -235,11 +237,11 @@ export class ShieldCortex {
   }
 
   async deleteInvite(id: number): Promise<void> {
-    await this.del(`/v1/invites/${id}`);
+    await this.del(`/v1/invites/${seg(id)}`);
   }
 
   async resendInvite(id: number): Promise<void> {
-    await this.post(`/v1/invites/${id}/resend`, {});
+    await this.post(`/v1/invites/${seg(id)}/resend`, {});
   }
 
   // --- Billing ---
@@ -276,7 +278,7 @@ export class ShieldCortex {
   }
 
   async updateDevice(uuid: string, name: string): Promise<void> {
-    await this.patch(`/v1/devices/${uuid}`, { name });
+    await this.patch(`/v1/devices/${seg(uuid)}`, { name });
   }
 
   async deviceHeartbeat(deviceId: string, options?: { deviceName?: string; platform?: string }): Promise<void> {
@@ -299,11 +301,11 @@ export class ShieldCortex {
   }
 
   async updateAlert(id: number, updates: Partial<CreateAlertInput & { enabled: boolean }>): Promise<AlertRule> {
-    return this.patch<AlertRule>(`/v1/alerts/${id}`, updates);
+    return this.patch<AlertRule>(`/v1/alerts/${seg(id)}`, updates);
   }
 
   async deleteAlert(id: number): Promise<void> {
-    await this.del(`/v1/alerts/${id}`);
+    await this.del(`/v1/alerts/${seg(id)}`);
   }
 
   // --- Webhooks ---
@@ -318,19 +320,19 @@ export class ShieldCortex {
   }
 
   async updateWebhook(id: number, updates: Partial<{ name: string; url: string; events: string[]; enabled: boolean }>): Promise<Webhook> {
-    return this.patch<Webhook>(`/v1/webhooks/${id}`, updates);
+    return this.patch<Webhook>(`/v1/webhooks/${seg(id)}`, updates);
   }
 
   async deleteWebhook(id: number): Promise<void> {
-    await this.del(`/v1/webhooks/${id}`);
+    await this.del(`/v1/webhooks/${seg(id)}`);
   }
 
   async testWebhook(id: number): Promise<TestWebhookResponse> {
-    return this.post<TestWebhookResponse>(`/v1/webhooks/${id}/test`, {});
+    return this.post<TestWebhookResponse>(`/v1/webhooks/${seg(id)}/test`, {});
   }
 
   async getWebhookDeliveries(id: number): Promise<WebhookDelivery[]> {
-    const data = await this.get<{ deliveries: WebhookDelivery[] }>(`/v1/webhooks/${id}/deliveries`);
+    const data = await this.get<{ deliveries: WebhookDelivery[] }>(`/v1/webhooks/${seg(id)}/deliveries`);
     return data.deliveries;
   }
 
@@ -351,11 +353,11 @@ export class ShieldCortex {
   }
 
   async updateFirewallRule(id: number, updates: Record<string, unknown>): Promise<FirewallRule> {
-    return this.patch<FirewallRule>(`/v1/firewall-rules/${id}`, updates);
+    return this.patch<FirewallRule>(`/v1/firewall-rules/${seg(id)}`, updates);
   }
 
   async deleteFirewallRule(id: number): Promise<void> {
-    await this.del(`/v1/firewall-rules/${id}`);
+    await this.del(`/v1/firewall-rules/${seg(id)}`);
   }
 
   // --- Iron Dome Patterns (Pro+) ---
@@ -386,15 +388,15 @@ export class ShieldCortex {
     test_string: string;
     enabled: boolean;
   }>): Promise<InjectionPattern> {
-    return this.patch<InjectionPattern>(`/v1/iron-dome/patterns/${id}`, updates);
+    return this.patch<InjectionPattern>(`/v1/iron-dome/patterns/${seg(id)}`, updates);
   }
 
   async testInjectionPattern(id: number, text: string): Promise<PatternTestResult> {
-    return this.post<PatternTestResult>(`/v1/iron-dome/patterns/${id}/test`, { text });
+    return this.post<PatternTestResult>(`/v1/iron-dome/patterns/${seg(id)}/test`, { text });
   }
 
   async deleteInjectionPattern(id: number): Promise<void> {
-    await this.del(`/v1/iron-dome/patterns/${id}`);
+    await this.del(`/v1/iron-dome/patterns/${seg(id)}`);
   }
 
   // --- Iron Dome Policies (Pro+) ---
@@ -421,15 +423,15 @@ export class ShieldCortex {
     base_profile: 'school' | 'enterprise' | 'personal' | 'paranoid';
     config_overrides: Record<string, unknown>;
   }>): Promise<IronDomePolicy> {
-    return this.patch<IronDomePolicy>(`/v1/iron-dome/policies/${id}`, updates);
+    return this.patch<IronDomePolicy>(`/v1/iron-dome/policies/${seg(id)}`, updates);
   }
 
   async setDefaultIronDomePolicy(id: number): Promise<IronDomePolicy> {
-    return this.put<IronDomePolicy>(`/v1/iron-dome/policies/${id}/default`);
+    return this.put<IronDomePolicy>(`/v1/iron-dome/policies/${seg(id)}/default`);
   }
 
   async deleteIronDomePolicy(id: number): Promise<void> {
-    await this.del(`/v1/iron-dome/policies/${id}`);
+    await this.del(`/v1/iron-dome/policies/${seg(id)}`);
   }
 
   // --- Verification (Enterprise) ---
@@ -447,11 +449,11 @@ export class ShieldCortex {
   }
 
   async getVerification(id: number): Promise<VerificationDetail> {
-    return this.get<VerificationDetail>(`/v1/verify/${id}`);
+    return this.get<VerificationDetail>(`/v1/verify/${seg(id)}`);
   }
 
   async deleteVerification(id: number): Promise<void> {
-    await this.del(`/v1/verify/${id}`);
+    await this.del(`/v1/verify/${seg(id)}`);
   }
 
   // --- Skills ---

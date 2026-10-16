@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Encode path parameters in API URLs so IDs containing slashes, question marks, or other special characters remain in one path segment.
+
 ## 0.3.0 — source commit 2026-08-15
 
 Version and metadata cut, coordinated with core v4.52.0 / cloud v2.18.0.
