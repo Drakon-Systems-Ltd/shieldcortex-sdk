@@ -16,9 +16,12 @@ const source = readFileSync(
   'utf8'
 );
 
-// Normalise template-literal params (`${manifestId}` → `{manifestId}`) so the
-// source can be matched against the manifest's placeholder form.
-const normalised = source.replace(/\$\{(\w+)\}/g, '{$1}');
+// Normalise path params (`${seg(manifestId)}` → `{manifestId}`) while
+// retaining support for bare params so the separate encoding check can flag them.
+const normalised = source.replace(
+  /\$\{(?:seg\(([A-Za-z]\w*)\)|([A-Za-z]\w*))\}/g,
+  (_, encoded: string | undefined, bare: string | undefined) => `{${encoded ?? bare}}`
+);
 
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -30,6 +33,20 @@ const appearsInSource = (path: string) =>
   new RegExp(`${escapeRegExp(path)}["'\`$?]`).test(normalised);
 
 describe('cross-SDK endpoint parity manifest', () => {
+  it('encodes every interpolated /v1/ path segment', () => {
+    const paths = [...source.matchAll(/`(\/v1\/[^`]*)`/g)].map((match) => match[1]);
+    const unencoded = paths.flatMap((path) =>
+      [...path.matchAll(/\$\{([^}]+)\}/g)]
+        .map((match) => match[1])
+        .filter((expression) =>
+          !(path.startsWith('/v1/audit/export${this.buildQuery(') && expression === 'this.buildQuery(params)') &&
+          !/^seg\([A-Za-z]\w*\)$/.test(expression)
+        )
+        .map((expression) => `${path}: ${expression}`)
+    );
+    expect(unencoded).toEqual([]);
+  });
+
   it('every COVERED path template appears in src/index.ts', () => {
     const missing = COVERED.filter(([, path]) => !appearsInSource(path));
     expect(missing).toEqual([]);
