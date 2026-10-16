@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## 0.3.1 — 2026-10-17
+
+Client-side fix release. No API, type or dependency changes.
+
+Merged pull requests: #5 (fix(client): URL-encode path parameters, closes #3) and #7 (fix(client): reject '.' and '..' path parameters before sending, closes #6).
+
 ### Fixed
 
 - Encode path parameters in API URLs so IDs containing slashes, question marks, or other special characters remain in one path segment.
