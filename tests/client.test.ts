@@ -43,6 +43,37 @@ describe('path parameter encoding', () => {
   const id = 'a/b?c#d e%';
   const encoded = 'a%2Fb%3Fc%23d%20e%25';
 
+  it.each(['.', '..'])('rejects %s in routes using seg() before fetch', async (value) => {
+    const { fetchMock } = mockFetchOnce(200, {});
+    const client = makeClient();
+    const requests = [
+      () => client.verifyAuditExport(value),
+      // DELETE ids are typed as numbers, but JavaScript callers can pass strings.
+      () => client.deleteAlert(value as unknown as number),
+      () => client.updateDevice(value, 'Renamed'),
+    ];
+
+    for (const request of requests) {
+      await expect(request()).rejects.toThrow(new TypeError("path parameter must not be '.' or '..'"));
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a..b', 'a..b'],
+    ['.hidden', '.hidden'],
+    ['...', '...'],
+    ['%2e%2e', '%252e%252e'],
+    ['..x', '..x'],
+  ])('keeps accepted value %s in one resolved URL segment', async (value, encodedValue) => {
+    const { calls } = mockFetchOnce(200, {});
+    await makeClient().verifyAuditExport(value);
+
+    const path = `/v1/audit/exports/${encodedValue}/verify`;
+    expectRequest(calls[0], { method: 'POST', path, body: {} });
+    expect(new URL(calls[0].url).pathname).toBe(path);
+  });
+
   it('encodes the audit export manifest id', async () => {
     const { calls } = mockFetchOnce(200, {});
     await makeClient().getAuditExportManifest(id);

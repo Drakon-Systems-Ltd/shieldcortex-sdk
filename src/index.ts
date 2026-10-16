@@ -84,7 +84,13 @@ import { ShieldCortexError, AuthError, RateLimitError, ValidationError, Forbidde
 
 const DEFAULT_BASE_URL = 'https://api.shieldcortex.ai';
 
-const seg = (value: string | number): string => encodeURIComponent(String(value));
+const seg = (value: string | number): string => {
+  const segment = String(value);
+  if (segment === '.' || segment === '..') {
+    throw new TypeError("path parameter must not be '.' or '..'");
+  }
+  return encodeURIComponent(segment);
+};
 
 export class ShieldCortex {
   private readonly apiKey: string;
