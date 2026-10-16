@@ -59,6 +59,22 @@ describe('path parameter encoding', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('rejects an empty id in POST, DELETE, and PATCH routes before fetch', async () => {
+    const { fetchMock } = mockFetchOnce(200, {});
+    const client = makeClient();
+    const requests = [
+      () => client.verifyAuditExport(''),
+      // DELETE ids are typed as numbers, but JavaScript callers can pass strings.
+      () => client.deleteAlert('' as unknown as number),
+      () => client.updateDevice('', 'Renamed'),
+    ];
+
+    for (const request of requests) {
+      await expect(request()).rejects.toThrow(new TypeError('path parameter must not be empty'));
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['a..b', 'a..b'],
     ['.hidden', '.hidden'],
