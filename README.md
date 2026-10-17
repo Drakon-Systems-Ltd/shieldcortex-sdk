@@ -8,6 +8,10 @@ Official TypeScript SDK for the [ShieldCortex](https://shieldcortex.ai) API. Sca
 npm install shieldcortex-sdk
 ```
 
+Requires Node.js 20+. The package is ESM-only: load it with `import`.
+`require('shieldcortex-sdk')` is not supported; CommonJS code can load it
+with a dynamic `import('shieldcortex-sdk')`.
+
 ## Quick Start
 
 ```typescript
@@ -224,6 +228,20 @@ try {
 }
 ```
 
+Every exported error class, and when the SDK throws it:
+
+| Class | `status` | Thrown when |
+|-------|----------|-------------|
+| `ShieldCortexError` | HTTP status | Base class of all the others. Thrown as-is for any other non-2xx response (for example 422 or 5xx), with message `API error: <status>`. |
+| `ValidationError` | `400` | Invalid request body. |
+| `AuthError` | `401` | Invalid or expired API key. |
+| `ForbiddenError` | `403` | The key lacks the scope or plan for the endpoint. |
+| `NotFoundError` | `404` | The resource does not exist. |
+| `RateLimitError` | `429` | Too many requests. `retryAfter` is `number \| null`: the `Retry-After` header in seconds, given as delta-seconds or as an HTTP-date (converted to seconds from now, rounded up, never negative); `null` if the header is absent or unparseable. |
+| `TimeoutError` | `0` | The request did not complete within the client `timeout` (`timeout` property, in ms). `0` is an SDK sentinel, not an HTTP status. |
+
+Every error has `status` and `body` (the raw response text; empty for `TimeoutError`). Invalid arguments throw a built-in `TypeError` (empty, `.` or `..` path parameters) or `RangeError` (invalid `timeout`) before any request is sent.
+
 All of these extend `ShieldCortexError`. The SDK does not wrap caller cancellation in `ShieldCortexError`: a caller-signal abort rejects with the signal's abort reason, so its type is whatever that reason is.
 
 ## Defence Modes
@@ -236,7 +254,8 @@ All of these extend `ShieldCortexError`. The SDK does not wrap caller cancellati
 
 ## Requirements
 
-- Node.js 18+ (uses native `fetch`)
+- Node.js 20+ (uses native `fetch`; declared in `engines` and tested in CI)
+- ESM only (`import`); no CommonJS `require` entry point
 - TypeScript 5+ (for type definitions)
 
 ## Links

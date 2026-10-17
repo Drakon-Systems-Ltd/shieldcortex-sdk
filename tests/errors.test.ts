@@ -11,6 +11,7 @@ import { jsonResponse, makeClient, mockFetch, mockFetchOnce } from './fixtures.j
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('error mapping', () => {
@@ -78,6 +79,34 @@ describe('error mapping', () => {
 
   it('sets retryAfter to null when Retry-After is absent', async () => {
     mockFetchOnce(429, { error: 'slow down' });
+
+    const err = await makeClient().scan({ content: 'x' }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(RateLimitError);
+    expect((err as RateLimitError).retryAfter).toBeNull();
+  });
+
+  it('converts an HTTP-date Retry-After to whole seconds from now, rounded up', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('Sun, 06 Nov 1994 08:49:37 GMT') + 200);
+    mockFetch(jsonResponse(429, { error: 'slow down' }, { 'retry-after': 'Sun, 06 Nov 1994 08:51:07 GMT' }));
+
+    const err = await makeClient().scan({ content: 'x' }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(RateLimitError);
+    expect((err as RateLimitError).retryAfter).toBe(90);
+  });
+
+  it('sets retryAfter to 0 when the Retry-After HTTP-date is in the past', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('Sun, 06 Nov 1994 08:49:37 GMT'));
+    mockFetch(jsonResponse(429, { error: 'slow down' }, { 'retry-after': 'Sun, 06 Nov 1994 08:00:00 GMT' }));
+
+    const err = await makeClient().scan({ content: 'x' }).catch((e: unknown) => e);
+
+    expect((err as RateLimitError).retryAfter).toBe(0);
+  });
+
+  it.each(['soon', '1.5', '-5', '30s', ''])('sets retryAfter to null for an unparseable Retry-After %j', async (header) => {
+    mockFetch(jsonResponse(429, { error: 'slow down' }, { 'retry-after': header }));
 
     const err = await makeClient().scan({ content: 'x' }).catch((e: unknown) => e);
 

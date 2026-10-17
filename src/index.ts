@@ -140,6 +140,18 @@ const seg = (value: string | number): string => {
   return encodeURIComponent(segment);
 };
 
+/**
+ * Retry-After as seconds: delta-seconds as-is, an IMF-fixdate HTTP-date as
+ * whole seconds from now (rounded up, never negative), anything else null.
+ */
+const parseRetryAfter = (value: string | null): number | null => {
+  if (value === null) return null;
+  if (/^\d+$/.test(value)) return Number(value);
+  if (!/^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(value)) return null;
+  const date = Date.parse(value);
+  return Number.isNaN(date) ? null : Math.max(0, Math.ceil((date - Date.now()) / 1000));
+};
+
 export class ShieldCortex {
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -636,8 +648,7 @@ export class ShieldCortex {
       if (res.status === 403) throw new ForbiddenError(body);
       if (res.status === 404) throw new NotFoundError(body);
       if (res.status === 429) {
-        const retryAfter = res.headers.get('retry-after');
-        throw new RateLimitError(body, retryAfter ? parseInt(retryAfter, 10) : null);
+        throw new RateLimitError(body, parseRetryAfter(res.headers.get('retry-after')));
       }
       if (res.status === 400) throw new ValidationError(body);
       throw new ShieldCortexError(`API error: ${res.status}`, res.status, body);
