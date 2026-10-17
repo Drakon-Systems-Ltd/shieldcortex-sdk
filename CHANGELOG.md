@@ -6,7 +6,7 @@
 
 Client-side fix release. No API, type or dependency changes.
 
-Merged pull requests: #5 (fix(client): URL-encode path parameters, closes #3) and #7 (fix(client): reject '.' and '..' path parameters before sending, closes #6).
+Merged pull requests: #5 (fix(client): URL-encode path parameters, closes #3), #7 (fix(client): reject '.' and '..' path parameters before sending, closes #6) and #10 (fix(client): reject empty path parameters before sending, closes #8).
 
 ### Fixed
 
