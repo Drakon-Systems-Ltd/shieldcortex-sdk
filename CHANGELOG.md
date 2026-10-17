@@ -4,9 +4,9 @@
 
 ### Added
 
-- `timeout` client option, in milliseconds, default `30000` to match the Python SDK. It covers the whole request, response body included. `0` or `Infinity` disables it. Invalid values (negative, `NaN`, non-number, above `2147483647`) throw a `RangeError` at construction.
-- Per-call cancellation: `scan`, `scanBatch` and `scanSkill` accept an optional trailing `{ signal?: AbortSignal }` argument (exported type `RequestOptions`). A caller abort rejects with the signal's own abort reason.
-- `TimeoutError` (extends `ShieldCortexError`, `status` 0), with a `.timeout` property giving the timeout in milliseconds.
+- `timeout` client option, in milliseconds, default `30000` to match the Python SDK. It covers the whole request, response body included. `0` or `Infinity` disables it. Invalid values (negative, fractional, `NaN`, non-number, above `2147483647`) throw a `RangeError` at construction.
+- Per-call cancellation: `scan`, `scanBatch` and `scanSkill` accept an optional trailing `{ signal?: AbortSignal }` argument (exported type `RequestOptions`). A caller abort rejects with the signal's own abort reason as-is, including falsy reasons and during a response-body read; the SDK does not wrap it in `ShieldCortexError`.
+- `TimeoutError` (extends `ShieldCortexError`), raised when a request does not complete within the client timeout. Its `status` is the SDK sentinel `0`; response headers may already have arrived. A `.timeout` property gives the timeout in milliseconds.
 
 ### Changed
 

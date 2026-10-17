@@ -48,7 +48,11 @@ export class NotFoundError extends ShieldCortexError {
   }
 }
 
-/** The request did not complete within the client's `timeout`. `status` is 0: no HTTP response was received. */
+/**
+ * The request did not complete within the client's `timeout`. The server may
+ * still have received or processed it, and response headers may already have
+ * arrived. `status` is always 0, an SDK sentinel rather than an HTTP status.
+ */
 export class TimeoutError extends ShieldCortexError {
   public readonly timeout: number;
 

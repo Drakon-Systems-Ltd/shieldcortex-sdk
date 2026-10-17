@@ -37,11 +37,11 @@ if (!result.allowed) {
 |--------|------|---------|-------------|
 | `apiKey` | `string` | *required* | Your API key (`sc_live_...` or `sc_test_...`) |
 | `baseUrl` | `string` | `https://api.shieldcortex.ai` | API base URL |
-| `timeout` | `number` | `30000` | Per-request timeout in milliseconds, covering the response body too. `0` or `Infinity` disables it. Negative, `NaN`, non-number or values above `2147483647` throw a `RangeError` at construction. A timed-out request rejects with `TimeoutError`. |
+| `timeout` | `number` | `30000` | Per-request timeout in milliseconds, covering the response body too. `0` or `Infinity` disables it. Negative, fractional, `NaN`, non-number or values above `2147483647` throw a `RangeError` at construction. A timed-out request rejects with `TimeoutError`. |
 
 #### Per-call cancellation: `{ signal }`
 
-`scan`, `scanBatch` and `scanSkill` accept an optional trailing `RequestOptions` argument, `{ signal?: AbortSignal }`. The signal and the client `timeout` both apply, and whichever fires first wins. When your signal aborts, the call rejects with the signal's abort reason as-is (an `AbortError` `DOMException` if you gave no reason). It is never turned into a `TimeoutError`.
+`scan`, `scanBatch` and `scanSkill` accept an optional trailing `RequestOptions` argument, `{ signal?: AbortSignal }`. The signal and the client `timeout` both apply, and whichever fires first wins. When your signal aborts first, the call rejects with the signal's abort reason as-is, even during the response-body read and even when the reason is falsy, such as `null` (an `AbortError` `DOMException` if you gave no reason). It is never turned into a `TimeoutError`.
 
 ```typescript
 const controller = new AbortController();
@@ -218,13 +218,13 @@ try {
     // 400 - Invalid request body
     console.error('Bad input:', err.body);
   } else if (err instanceof TimeoutError) {
-    // No response within the client `timeout` (err.timeout ms); err.status is 0
+    // Request did not complete within the client timeout (err.timeout ms); err.status is 0
     console.error('Timed out after', err.timeout, 'ms');
   }
 }
 ```
 
-All of these extend `ShieldCortexError`. A caller-signal abort is not a `ShieldCortexError`; it rejects with the signal's abort reason.
+All of these extend `ShieldCortexError`. The SDK does not wrap caller cancellation in `ShieldCortexError`: a caller-signal abort rejects with the signal's abort reason, so its type is whatever that reason is.
 
 ## Defence Modes
 

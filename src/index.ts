@@ -91,26 +91,42 @@ const MAX_TIMEOUT_MS = 2_147_483_647;
 const resolveTimeout = (timeout: unknown): number => {
   if (timeout === undefined) return DEFAULT_TIMEOUT_MS;
   if (timeout === Infinity) return 0;
-  if (typeof timeout !== 'number' || !(timeout >= 0 && timeout <= MAX_TIMEOUT_MS)) {
+  if (typeof timeout !== 'number' || !Number.isInteger(timeout) || !(timeout >= 0 && timeout <= MAX_TIMEOUT_MS)) {
     throw new RangeError(
-      `timeout must be a number of milliseconds from 0 to ${MAX_TIMEOUT_MS}, or Infinity (0 and Infinity disable it)`
+      `timeout must be an integer number of milliseconds from 0 to ${MAX_TIMEOUT_MS}, or Infinity (0 and Infinity disable it)`
     );
   }
   return timeout;
 };
 
-const anySignal = (signals: AbortSignal[]): AbortSignal => {
-  if (signals.length === 1) return signals[0];
-  if (typeof AbortSignal.any === 'function') return AbortSignal.any(signals);
+/**
+ * Aborts when the first of `signals` aborts, with that signal's reason. Later
+ * aborts do not change the reason. `dispose` detaches any listeners added here.
+ */
+const anySignal = (signals: AbortSignal[]): { signal: AbortSignal; dispose: () => void } => {
+  const noop = () => {};
+  if (signals.length === 1) return { signal: signals[0], dispose: noop };
+  if (typeof AbortSignal.any === 'function') return { signal: AbortSignal.any(signals), dispose: noop };
   const controller = new AbortController();
+  const listeners: Array<[AbortSignal, () => void]> = [];
+  const dispose = () => {
+    for (const [signal, listener] of listeners) signal.removeEventListener('abort', listener);
+    listeners.length = 0;
+  };
   for (const signal of signals) {
     if (signal.aborted) {
       controller.abort(signal.reason);
       break;
     }
-    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+    const listener = () => {
+      dispose();
+      controller.abort(signal.reason);
+    };
+    listeners.push([signal, listener]);
+    signal.addEventListener('abort', listener, { once: true });
   }
-  return controller.signal;
+  if (controller.signal.aborted) dispose();
+  return { signal: controller.signal, dispose };
 };
 
 const seg = (value: string | number): string => {
@@ -637,16 +653,21 @@ export class ShieldCortex {
   private async send<T>(path: string, init: RequestInit | undefined, read: (res: Response) => Promise<T>): Promise<T> {
     const timeoutSignal = this.timeout ? AbortSignal.timeout(this.timeout) : undefined;
     const signals = [init?.signal, timeoutSignal].filter((s): s is AbortSignal => s != null);
-    const signal = signals.length ? anySignal(signals) : undefined;
+    const combined = signals.length ? anySignal(signals) : undefined;
+    const signal = combined?.signal;
 
     try {
       return await read(await this.requestRaw(path, { ...init, signal }));
     } catch (err) {
-      // Only the timeout becomes TimeoutError; a caller abort propagates its own reason.
-      if (timeoutSignal?.aborted && signal?.reason === timeoutSignal.reason && !(err instanceof ShieldCortexError)) {
-        throw new TimeoutError(this.timeout);
-      }
-      throw err;
+      // An HTTP error that completed before any abort is reported as-is.
+      if (!signal?.aborted || (err instanceof ShieldCortexError && err !== signal.reason)) throw err;
+      // The combined signal keeps the reason of whichever source aborted first.
+      // Take the outcome from it, not from `err`: runtimes may replace the
+      // caller's reason with a generic AbortError (e.g. during a body read).
+      if (signal.reason === timeoutSignal?.reason) throw new TimeoutError(this.timeout);
+      throw signal.reason;
+    } finally {
+      combined?.dispose();
     }
   }
 

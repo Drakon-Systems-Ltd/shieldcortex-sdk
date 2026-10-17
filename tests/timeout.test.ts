@@ -1,7 +1,8 @@
+import { getEventListeners } from 'node:events';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ShieldCortexError, TimeoutError } from '../src/index.js';
+import { RateLimitError, ShieldCortexError, TimeoutError } from '../src/index.js';
 import type { RequestOptions } from '../src/index.js';
 import { makeClient, mockFetchOnce } from './fixtures.js';
 
@@ -120,7 +121,7 @@ describe('request timeout', () => {
     expect(refTimers()).toBe(before);
   });
 
-  it.each([-1, NaN, 2_147_483_648, -Infinity, '100'])('rejects timeout: %s at construction', (timeout) => {
+  it.each([-1, NaN, 2_147_483_648, -Infinity, '100', 0.5, 1.5])('rejects timeout: %s at construction', (timeout) => {
     expect(() => makeClient({ timeout: timeout as number })).toThrow(RangeError);
   });
 
@@ -168,5 +169,167 @@ describe('per-call signal', () => {
     const options: RequestOptions = { signal: new AbortController().signal };
 
     await expect(client.scan({ content: 'hello' }, options)).rejects.toBeInstanceOf(TimeoutError);
+  });
+});
+
+/** Headers sent, body left unfinished. */
+const stallBody = (status: number) => (res: ServerResponse) => {
+  res.writeHead(status, { 'content-type': 'application/json' });
+  res.write('{');
+};
+
+/** Aborts `controller` with `reason` shortly after fetch has returned the response headers. */
+const abortAfterHeaders = (controller: AbortController, reason: unknown) => {
+  const nativeFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', async (...args: Parameters<typeof fetch>) => {
+    const res = await nativeFetch(...args);
+    setTimeout(() => controller.abort(reason), 20);
+    return res;
+  });
+};
+
+const callerReasons: Array<[string, () => unknown]> = [
+  ['null', () => null],
+  ['0', () => 0],
+  ['false', () => false],
+  ['an Error', () => new Error('caller gave up')],
+  ["a caller DOMException named 'TimeoutError'", () => new DOMException('caller deadline', 'TimeoutError')],
+];
+
+describe('caller abort reason is preserved exactly', () => {
+  describe.each(callerReasons)('reason %s', (_label, makeReason) => {
+    it('before the response headers', async () => {
+      const client = makeClient({ baseUrl, timeout: 5000 });
+      const controller = new AbortController();
+      const reason = makeReason();
+
+      const pending = client.scan({ content: 'hello' }, { signal: controller.signal }).then(
+        () => ({ settled: 'resolved' as const }),
+        (error: unknown) => ({ settled: 'rejected' as const, error })
+      );
+      setTimeout(() => controller.abort(reason), 20);
+
+      const outcome = await pending;
+      expect(outcome.settled).toBe('rejected');
+      if (outcome.settled === 'rejected') {
+        expect(outcome.error).toBe(reason);
+        expect(outcome.error).not.toBeInstanceOf(TimeoutError);
+      }
+    });
+
+    it.each([200, 429, 500])('while reading a stalled HTTP %s body', async (status) => {
+      handler = stallBody(status);
+      const client = makeClient({ baseUrl, timeout: 5000 });
+      const controller = new AbortController();
+      const reason = makeReason();
+      abortAfterHeaders(controller, reason);
+
+      const outcome = await client.scan({ content: 'hello' }, { signal: controller.signal }).then(
+        () => ({ settled: 'resolved' as const }),
+        (error: unknown) => ({ settled: 'rejected' as const, error })
+      );
+
+      expect(outcome.settled).toBe('rejected');
+      if (outcome.settled === 'rejected') {
+        expect(outcome.error).toBe(reason);
+        expect(outcome.error).not.toBeInstanceOf(TimeoutError);
+      }
+    });
+  });
+
+  it('an SDK timeout during a stalled body read still rejects with TimeoutError', async () => {
+    handler = stallBody(429);
+    const client = makeClient({ baseUrl, timeout: 50 });
+    const options: RequestOptions = { signal: new AbortController().signal };
+
+    await expect(client.scan({ content: 'hello' }, options)).rejects.toBeInstanceOf(TimeoutError);
+  });
+
+  it('a timeout that fires after the caller aborted does not change the outcome', async () => {
+    handler = stallBody(200);
+    const client = makeClient({ baseUrl, timeout: 60 });
+    const controller = new AbortController();
+    const reason = new Error('caller first');
+    abortAfterHeaders(controller, reason);
+
+    const err = await client.scan({ content: 'hello' }, { signal: controller.signal }).catch((e: unknown) => e);
+    await new Promise((resolve) => setTimeout(resolve, 80)); // let the timeout fire too
+
+    expect(err).toBe(reason);
+  });
+
+  it('a completed HTTP error is unchanged when a caller signal is passed', async () => {
+    handler = (res) => {
+      res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '7' });
+      res.end('{"error":"slow down"}');
+    };
+    const client = makeClient({ baseUrl, timeout: 5000 });
+
+    const err = await client.scan({ content: 'hello' }, { signal: new AbortController().signal }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(RateLimitError);
+    expect((err as RateLimitError).retryAfter).toBe(7);
+  });
+
+  it('a caller reason that is itself a ShieldCortexError is returned as-is', async () => {
+    const client = makeClient({ baseUrl, timeout: 5000 });
+    const reason = new ShieldCortexError('caller reason', 0, '');
+
+    await expect(
+      client.scan({ content: 'hello' }, { signal: AbortSignal.abort(reason) })
+    ).rejects.toBe(reason);
+  });
+});
+
+describe('without AbortSignal.any (fallback combiner)', () => {
+  const nativeAny = AbortSignal.any;
+  beforeEach(() => {
+    (AbortSignal as { any?: unknown }).any = undefined;
+  });
+  afterEach(() => {
+    AbortSignal.any = nativeAny;
+  });
+
+  it('leaves no listener on the caller signal after each request settles', async () => {
+    handler = (res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ allowed: true }));
+    };
+    const client = makeClient({ baseUrl, timeout: 1000 });
+    const controller = new AbortController();
+
+    for (let i = 0; i < 12; i++) {
+      await client.scan({ content: 'hello' }, { signal: controller.signal });
+    }
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+
+    handler = () => {};
+    await expect(
+      makeClient({ baseUrl, timeout: 30 }).scan({ content: 'hello' }, { signal: controller.signal })
+    ).rejects.toBeInstanceOf(TimeoutError);
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+  });
+
+  it('preserves a falsy caller reason during a body read', async () => {
+    handler = stallBody(200);
+    const client = makeClient({ baseUrl, timeout: 5000 });
+    const controller = new AbortController();
+    abortAfterHeaders(controller, null);
+
+    const outcome = await client.scan({ content: 'hello' }, { signal: controller.signal }).then(
+      () => 'resolved',
+      (error: unknown) => ({ error })
+    );
+
+    expect(outcome).toEqual({ error: null });
+  });
+
+  it('still rejects a stalled body with TimeoutError', async () => {
+    handler = stallBody(200);
+    const client = makeClient({ baseUrl, timeout: 50 });
+
+    await expect(
+      client.scan({ content: 'hello' }, { signal: new AbortController().signal })
+    ).rejects.toBeInstanceOf(TimeoutError);
   });
 });
