@@ -12,6 +12,12 @@
 
 - Requests now time out after 30 s by default and reject with `TimeoutError`. Before this change they waited indefinitely. Pass `timeout: 0` to keep the old behaviour.
 
+## 0.3.1 — 2026-10-17
+
+Client-side fix release. No API, type or dependency changes.
+
+Merged pull requests: #5 (fix(client): URL-encode path parameters, closes #3), #7 (fix(client): reject '.' and '..' path parameters before sending, closes #6) and #10 (fix(client): reject empty path parameters before sending, closes #8).
+
 ### Fixed
 
 - Encode path parameters in API URLs so IDs containing slashes, question marks, or other special characters remain in one path segment.
