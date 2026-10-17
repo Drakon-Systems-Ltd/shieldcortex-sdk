@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## 0.4.0 — 2026-10-17
+
+Client feature release: a request timeout, per-call cancellation and a `TimeoutError` class. No Cloud API or dependency changes. Minor rather than patch because the shipped change is typed `feat`. **Behaviour change:** requests now time out after 30 s by default (see Changed).
+
+Merged pull requests: #11 (feat(client): request timeout, per-call AbortSignal and TimeoutError, closes #2).
+
 ### Added
 
 - `timeout` client option, in milliseconds, default `30000` to match the Python SDK. It covers the whole request, response body included. `0` or `Infinity` disables it. Invalid values (negative, fractional, `NaN`, non-number, above `2147483647`) throw a `RangeError` at construction.
