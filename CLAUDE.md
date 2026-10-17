@@ -28,14 +28,10 @@ if (!result.allowed) {
 
 ## Available Methods
 
-| Method | Purpose |
-|--------|---------|
-| `scan(input)` | Scan single content through 6-layer defence pipeline |
-| `scanBatch(items, opts?)` | Scan up to 100 items in one request |
-| `getAuditLogs(query?)` | Query audit trail with filters and pagination |
-| `getAuditStats(timeRange?)` | Get summary stats (`'24h'`, `'7d'`, `'30d'`) |
-| `getQuarantine(query?)` | List quarantined items |
-| `reviewQuarantine(id, action)` | Approve or reject quarantined item |
+The client has many more methods than the scanning and audit calls shown here.
+The method inventory is the "API Coverage" section of `README.md`; the source
+of truth is the public methods of the `ShieldCortex` class in `src/index.ts`.
+Read them there rather than keeping a copy here.
 
 ## Key Types
 
@@ -55,10 +51,11 @@ new ShieldCortex({ apiKey: string, baseUrl?: string })
 
 ## Error Classes
 
-- `AuthError` (401) — Invalid API key
-- `RateLimitError` (429) — Has `.retryAfter` property (seconds)
-- `ValidationError` (400) — Bad request body
-- `ShieldCortexError` — Base class, has `.status` and `.body`
+See the error table in the "Error Handling" section of `README.md` for every
+exported class and its status: `ShieldCortexError` (base; other non-2xx),
+`ValidationError` (400), `AuthError` (401), `ForbiddenError` (403),
+`NotFoundError` (404), `RateLimitError` (429, `.retryAfter` seconds or `null`)
+and `TimeoutError` (status `0`).
 
 ## Common Patterns
 
@@ -111,4 +108,4 @@ sdk/
 npm run build    # Compile TypeScript
 ```
 
-Zero runtime dependencies. Uses native `fetch` (Node 18+). ESM-only.
+Zero runtime dependencies. Uses native `fetch` (Node 20+, declared in `engines`). ESM-only: `require()` is not supported.
