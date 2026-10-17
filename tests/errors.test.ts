@@ -86,23 +86,34 @@ describe('error mapping', () => {
     expect((err as RateLimitError).retryAfter).toBeNull();
   });
 
-  it('converts an HTTP-date Retry-After to whole seconds from now, rounded up', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('Sun, 06 Nov 1994 08:49:37 GMT') + 200);
-    mockFetch(jsonResponse(429, { error: 'slow down' }, { 'retry-after': 'Sun, 06 Nov 1994 08:51:07 GMT' }));
+  it.each([
+    ['0', 0],
+    ['120', 120],
+  ])('sets retryAfter to the delta-seconds Retry-After %j', async (header, expected) => {
+    mockFetch(jsonResponse(429, { error: 'slow down' }, { 'retry-after': header }));
 
     const err = await makeClient().scan({ content: 'x' }).catch((e: unknown) => e);
 
     expect(err).toBeInstanceOf(RateLimitError);
-    expect((err as RateLimitError).retryAfter).toBe(90);
+    expect((err as RateLimitError).retryAfter).toBe(expected);
   });
 
-  it('sets retryAfter to 0 when the Retry-After HTTP-date is in the past', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('Sun, 06 Nov 1994 08:49:37 GMT'));
-    mockFetch(jsonResponse(429, { error: 'slow down' }, { 'retry-after': 'Sun, 06 Nov 1994 08:00:00 GMT' }));
+  // HTTP-date Retry-After is not converted yet; every date gives null.
+  it.each([
+    'Foo, 06 Nov 1994 08:51:07 GMT',
+    'Sun, 31 Nov 1994 08:51:07 GMT',
+    'Sun, 06 Nov 1994 24:00:00 GMT',
+    'Sat, 31 Dec 1994 23:59:60 GMT',
+    'Mon, 06 Nov 1994 08:51:07 GMT',
+    'Wed, 29 Feb 1995 00:00:00 GMT',
+    'Fri, 01 Jan 2100 00:00:00 GMT',
+  ])('sets retryAfter to null for an HTTP-date Retry-After %j', async (header) => {
+    mockFetch(jsonResponse(429, { error: 'slow down' }, { 'retry-after': header }));
 
     const err = await makeClient().scan({ content: 'x' }).catch((e: unknown) => e);
 
-    expect((err as RateLimitError).retryAfter).toBe(0);
+    expect(err).toBeInstanceOf(RateLimitError);
+    expect((err as RateLimitError).retryAfter).toBeNull();
   });
 
   it.each(['soon', '1.5', '-5', '30s', ''])('sets retryAfter to null for an unparseable Retry-After %j', async (header) => {

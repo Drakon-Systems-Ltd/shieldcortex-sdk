@@ -14,7 +14,7 @@
 
 ### Fixed
 
-- `RateLimitError.retryAfter` is no longer `NaN` when the `Retry-After` header is an HTTP-date. Delta-seconds give that integer; an IMF-fixdate HTTP-date gives the seconds until that date, rounded up and never negative; any other value gives `null`. Previously any value was passed through `parseInt`, so a date gave `NaN` and a value such as `30s` gave `30`.
+- `RateLimitError.retryAfter` is no longer `NaN`. Delta-seconds give that integer; any other value, including an HTTP-date, gives `null` (HTTP-date `Retry-After` is not yet converted). Previously any value was passed through `parseInt`, so a date gave `NaN` and a value such as `30s` gave `30`.
 
 ### Documentation
 

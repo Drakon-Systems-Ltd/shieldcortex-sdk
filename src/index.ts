@@ -141,16 +141,11 @@ const seg = (value: string | number): string => {
 };
 
 /**
- * Retry-After as seconds: delta-seconds as-is, an IMF-fixdate HTTP-date as
- * whole seconds from now (rounded up, never negative), anything else null.
+ * Retry-After as seconds: delta-seconds as-is; anything else, including an
+ * HTTP-date (not yet converted), null.
  */
-const parseRetryAfter = (value: string | null): number | null => {
-  if (value === null) return null;
-  if (/^\d+$/.test(value)) return Number(value);
-  if (!/^[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(value)) return null;
-  const date = Date.parse(value);
-  return Number.isNaN(date) ? null : Math.max(0, Math.ceil((date - Date.now()) / 1000));
-};
+const parseRetryAfter = (value: string | null): number | null =>
+  value !== null && /^\d+$/.test(value) ? Number(value) : null;
 
 export class ShieldCortex {
   private readonly apiKey: string;
