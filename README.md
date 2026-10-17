@@ -236,4 +236,4 @@ MIT
 
 ## Release alignment
 
-This SDK targets the ShieldCortex Cloud API. Coordinated with core **v4.52.0** / cloud **v2.18.0**. Client package version is independent of core (`0.3.0` on this cut).
+This SDK targets the ShieldCortex Cloud API. Coordinated with core **v4.52.0** / cloud **v2.18.0**. Client package version is independent of core. `0.3.0` was the coordinated cut; `0.3.1` is a client-side fix release with no API changes.
