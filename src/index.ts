@@ -140,6 +140,13 @@ const seg = (value: string | number): string => {
   return encodeURIComponent(segment);
 };
 
+/**
+ * Retry-After as seconds: delta-seconds as-is; anything else, including an
+ * HTTP-date (not yet converted), null.
+ */
+const parseRetryAfter = (value: string | null): number | null =>
+  value !== null && /^\d+$/.test(value) ? Number(value) : null;
+
 export class ShieldCortex {
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -636,8 +643,7 @@ export class ShieldCortex {
       if (res.status === 403) throw new ForbiddenError(body);
       if (res.status === 404) throw new NotFoundError(body);
       if (res.status === 429) {
-        const retryAfter = res.headers.get('retry-after');
-        throw new RateLimitError(body, retryAfter ? parseInt(retryAfter, 10) : null);
+        throw new RateLimitError(body, parseRetryAfter(res.headers.get('retry-after')));
       }
       if (res.status === 400) throw new ValidationError(body);
       throw new ShieldCortexError(`API error: ${res.status}`, res.status, body);

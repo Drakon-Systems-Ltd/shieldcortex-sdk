@@ -12,6 +12,17 @@
 
 - Requests now time out after 30 s by default and reject with `TimeoutError`. Before this change they waited indefinitely. Pass `timeout: 0` to keep the old behaviour.
 
+### Fixed
+
+- `RateLimitError.retryAfter` is no longer `NaN`. Delta-seconds give that integer; any other value, including an HTTP-date, gives `null` (HTTP-date `Retry-After` is not yet converted). Previously any value was passed through `parseInt`, so a date gave `NaN` and a value such as `30s` gave `30`.
+
+### Documentation
+
+- Node.js floor is now 20+, the version CI tests, and is declared in `package.json` `engines` (`>=20`). The README previously said 18+, which was neither declared nor tested.
+- README states that the package is ESM-only: `require('shieldcortex-sdk')` is not supported, and CommonJS code can use dynamic `import()`. In `exports["."]` the `types` condition now comes before `import`.
+- README documents every exported error class and the status it maps to: `ShieldCortexError`, `ValidationError` (400), `AuthError` (401), `ForbiddenError` (403), `NotFoundError` (404), `RateLimitError` (429) and `TimeoutError` (0).
+- `CLAUDE.md` no longer keeps its own six-method list or partial error list; it points to the README method inventory and error table.
+
 ## 0.3.1 — 2026-10-17
 
 Client-side fix release. No API, type or dependency changes.
@@ -24,6 +35,10 @@ Merged pull requests: #5 (fix(client): URL-encode path parameters, closes #3), #
 - Reject empty, `.` and `..` path parameters before sending a request, so URL parsing cannot change the route.
 
 ## 0.3.0 — source commit 2026-08-15
+
+Published to npm at 2026-08-15T04:39:01.445Z (registry `time` field, checked
+2026-10-17). This confirms the publication date that the provenance note below
+lists as unconfirmed.
 
 Version and metadata cut, coordinated with core v4.52.0 / cloud v2.18.0.
 No source, API, type, lockfile, compiler or workflow changes since 0.2.0.
