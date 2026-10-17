@@ -4,9 +4,11 @@
 
 ## 0.4.0 — 2026-10-17
 
-Client feature release: a request timeout, per-call cancellation and a `TimeoutError` class. No Cloud API or dependency changes. Minor rather than patch because the shipped change is typed `feat`. **Behaviour change:** requests now time out after 30 s by default (see Changed).
+Client feature release: a request timeout, per-call cancellation and a `TimeoutError` class, plus a `RateLimitError.retryAfter` fix and a docs-vs-code pass. No Cloud API or dependency changes. Minor rather than patch because the shipped change is typed `feat`. **Behaviour change:** requests now time out after 30 s by default (see Changed). `package.json` now declares `engines` `node >=20`, the version CI tests.
 
-Merged pull requests: #11 (feat(client): request timeout, per-call AbortSignal and TimeoutError, closes #2).
+`0.3.1` was tagged but never published to npm (its publish run failed), so on npm this is the first release carrying the 0.3.1 path-parameter fixes as well: upgrading from npm `0.3.0` picks up both sections.
+
+Merged pull requests: #11 (feat(client): request timeout, per-call AbortSignal and TimeoutError, closes #2) and #12 (docs: docs-vs-code pass at 0.3.0; Retry-After never NaN, for #4).
 
 ### Added
 
@@ -31,7 +33,7 @@ Merged pull requests: #11 (feat(client): request timeout, per-call AbortSignal a
 
 ## 0.3.1 — 2026-10-17
 
-Client-side fix release. No API, type or dependency changes.
+Client-side fix release. No API, type or dependency changes. Tagged `v0.3.1` but not published to npm: the publish workflow failed at `npm publish`. These fixes first reach npm in 0.4.0.
 
 Merged pull requests: #5 (fix(client): URL-encode path parameters, closes #3), #7 (fix(client): reject '.' and '..' path parameters before sending, closes #6) and #10 (fix(client): reject empty path parameters before sending, closes #8).
 

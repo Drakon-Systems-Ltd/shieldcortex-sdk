@@ -271,4 +271,4 @@ MIT
 
 ## Release alignment
 
-This SDK targets the ShieldCortex Cloud API. Coordinated with core **v4.52.0** / cloud **v2.18.0**. Client package version is independent of core. `0.3.0` was the coordinated cut; `0.3.1` was a client-side fix release with no API changes; `0.4.0` adds a client request timeout (default 30 s), per-call cancellation and `TimeoutError`, with no Cloud API changes.
+This SDK targets the ShieldCortex Cloud API. Coordinated with core **v4.52.0** / cloud **v2.18.0**. Client package version is independent of core. `0.3.0` was the coordinated cut; `0.3.1` was a client-side fix release with no API changes, tagged but not published to npm; `0.4.0` adds a client request timeout (default 30 s), per-call cancellation and `TimeoutError`, with no Cloud API changes, and is the first npm release carrying the 0.3.1 fixes.
