@@ -1136,4 +1136,16 @@ export interface RegenerateLicenseResponse {
 export interface ShieldCortexOptions {
   apiKey: string;
   baseUrl?: string;
+  /**
+   * Per-request timeout in milliseconds (default 30000). `0` or `Infinity`
+   * disables it. Must be an integer; other values throw `RangeError` at
+   * construction. A timed-out request rejects with `TimeoutError`.
+   */
+  timeout?: number;
+}
+
+/** Per-call options accepted by the scanning methods. */
+export interface RequestOptions {
+  /** Cancels the request; the call rejects with the signal's abort reason as-is. */
+  signal?: AbortSignal;
 }

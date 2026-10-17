@@ -1,5 +1,6 @@
 import type {
   ShieldCortexOptions,
+  RequestOptions,
   ScanInput,
   ScanResult,
   BatchItem,
@@ -80,9 +81,53 @@ import type {
   LicenseInfo,
   RegenerateLicenseResponse,
 } from './types.js';
-import { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError } from './errors.js';
+import { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError, TimeoutError } from './errors.js';
 
 const DEFAULT_BASE_URL = 'https://api.shieldcortex.ai';
+const DEFAULT_TIMEOUT_MS = 30_000;
+// Timer delays above 2^31 - 1 ms overflow and fire after 1 ms instead.
+const MAX_TIMEOUT_MS = 2_147_483_647;
+
+const resolveTimeout = (timeout: unknown): number => {
+  if (timeout === undefined) return DEFAULT_TIMEOUT_MS;
+  if (timeout === Infinity) return 0;
+  if (typeof timeout !== 'number' || !Number.isInteger(timeout) || !(timeout >= 0 && timeout <= MAX_TIMEOUT_MS)) {
+    throw new RangeError(
+      `timeout must be an integer number of milliseconds from 0 to ${MAX_TIMEOUT_MS}, or Infinity (0 and Infinity disable it)`
+    );
+  }
+  return timeout;
+};
+
+/**
+ * Aborts when the first of `signals` aborts, with that signal's reason. Later
+ * aborts do not change the reason. `dispose` detaches any listeners added here.
+ */
+const anySignal = (signals: AbortSignal[]): { signal: AbortSignal; dispose: () => void } => {
+  const noop = () => {};
+  if (signals.length === 1) return { signal: signals[0], dispose: noop };
+  if (typeof AbortSignal.any === 'function') return { signal: AbortSignal.any(signals), dispose: noop };
+  const controller = new AbortController();
+  const listeners: Array<[AbortSignal, () => void]> = [];
+  const dispose = () => {
+    for (const [signal, listener] of listeners) signal.removeEventListener('abort', listener);
+    listeners.length = 0;
+  };
+  for (const signal of signals) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    const listener = () => {
+      dispose();
+      controller.abort(signal.reason);
+    };
+    listeners.push([signal, listener]);
+    signal.addEventListener('abort', listener, { once: true });
+  }
+  if (controller.signal.aborted) dispose();
+  return { signal: controller.signal, dispose };
+};
 
 const seg = (value: string | number): string => {
   const segment = String(value);
@@ -98,24 +143,31 @@ const seg = (value: string | number): string => {
 export class ShieldCortex {
   private readonly apiKey: string;
   private readonly baseUrl: string;
+  /** Milliseconds; 0 means no timeout. */
+  private readonly timeout: number;
 
   constructor(options: ShieldCortexOptions) {
     this.apiKey = options.apiKey;
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, '');
+    this.timeout = resolveTimeout(options.timeout);
   }
 
   // --- Scanning ---
 
-  async scan(input: ScanInput): Promise<ScanResult> {
-    return this.post<ScanResult>('/v1/scan', input);
+  async scan(input: ScanInput, requestOptions?: RequestOptions): Promise<ScanResult> {
+    return this.post<ScanResult>('/v1/scan', input, requestOptions?.signal);
   }
 
-  async scanBatch(items: BatchItem[], options?: BatchOptions): Promise<BatchResult> {
-    return this.post<BatchResult>('/v1/scan/batch', { items, ...options });
+  async scanBatch(items: BatchItem[], options?: BatchOptions, requestOptions?: RequestOptions): Promise<BatchResult> {
+    return this.post<BatchResult>('/v1/scan/batch', { items, ...options }, requestOptions?.signal);
   }
 
-  async scanSkill(content: string, options?: { format?: string; name?: string; mode?: string }): Promise<SkillScanResult> {
-    return this.post<SkillScanResult>('/v1/scan/skill', { content, format: 'skill-md', ...options });
+  async scanSkill(
+    content: string,
+    options?: { format?: string; name?: string; mode?: string },
+    requestOptions?: RequestOptions
+  ): Promise<SkillScanResult> {
+    return this.post<SkillScanResult>('/v1/scan/skill', { content, format: 'skill-md', ...options }, requestOptions?.signal);
   }
 
   // --- Audit ---
@@ -143,22 +195,23 @@ export class ShieldCortex {
    */
   async exportAuditLogs(query?: AuditExportQuery): Promise<AuditExportResult> {
     const params = { ...query, format: query?.format ?? 'json' };
-    const res = await this.requestRaw(`/v1/audit/export${this.buildQuery(params)}`);
-    const countHeader = res.headers.get('X-ShieldCortex-Export-Count');
-    const count = countHeader?.trim() ? Number(countHeader) : NaN;
-    return {
-      content: await res.text(),
-      headers: {
-        // Absent integrity headers stay undefined (never '') — the export is unverifiable.
-        sha256: res.headers.get('X-ShieldCortex-Export-SHA256') ?? undefined,
-        count: Number.isNaN(count) ? undefined : count,
-        generatedAt: res.headers.get('X-ShieldCortex-Export-Generated-At') ?? '',
-        manifestId: res.headers.get('X-ShieldCortex-Export-Manifest-Id') ?? undefined,
-        signature: res.headers.get('X-ShieldCortex-Export-Signature') ?? undefined,
-        signatureAlgorithm: res.headers.get('X-ShieldCortex-Export-Signature-Alg') ?? '',
-        manifestPersisted: res.headers.get('X-ShieldCortex-Export-Manifest-Persisted') === '1',
-      },
-    };
+    return this.send(`/v1/audit/export${this.buildQuery(params)}`, undefined, async (res) => {
+      const countHeader = res.headers.get('X-ShieldCortex-Export-Count');
+      const count = countHeader?.trim() ? Number(countHeader) : NaN;
+      return {
+        content: await res.text(),
+        headers: {
+          // Absent integrity headers stay undefined (never '') — the export is unverifiable.
+          sha256: res.headers.get('X-ShieldCortex-Export-SHA256') ?? undefined,
+          count: Number.isNaN(count) ? undefined : count,
+          generatedAt: res.headers.get('X-ShieldCortex-Export-Generated-At') ?? '',
+          manifestId: res.headers.get('X-ShieldCortex-Export-Manifest-Id') ?? undefined,
+          signature: res.headers.get('X-ShieldCortex-Export-Signature') ?? undefined,
+          signatureAlgorithm: res.headers.get('X-ShieldCortex-Export-Signature-Alg') ?? '',
+          manifestPersisted: res.headers.get('X-ShieldCortex-Export-Manifest-Persisted') === '1',
+        },
+      };
+    });
   }
 
   async ingestAuditEvents(entries: AuditIngestEntry[]): Promise<IngestResponse> {
@@ -549,8 +602,8 @@ export class ShieldCortex {
     return this.request<T>(`${path}${this.buildQuery(params)}`);
   }
 
-  private async post<T = unknown>(path: string, body: unknown): Promise<T> {
-    return this.request<T>(path, { method: 'POST', body: JSON.stringify(body) });
+  private async post<T = unknown>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+    return this.request<T>(path, { method: 'POST', body: JSON.stringify(body), signal });
   }
 
   private async patch<T = unknown>(path: string, body: unknown): Promise<T> {
@@ -593,12 +646,36 @@ export class ShieldCortex {
     return res;
   }
 
+  /**
+   * requestRaw + `read` on the successful response. The timeout and the
+   * caller's signal cover the whole exchange, body included.
+   */
+  private async send<T>(path: string, init: RequestInit | undefined, read: (res: Response) => Promise<T>): Promise<T> {
+    const timeoutSignal = this.timeout ? AbortSignal.timeout(this.timeout) : undefined;
+    const signals = [init?.signal, timeoutSignal].filter((s): s is AbortSignal => s != null);
+    const combined = signals.length ? anySignal(signals) : undefined;
+    const signal = combined?.signal;
+
+    try {
+      return await read(await this.requestRaw(path, { ...init, signal }));
+    } catch (err) {
+      // An HTTP error that completed before any abort is reported as-is.
+      if (!signal?.aborted || (err instanceof ShieldCortexError && err !== signal.reason)) throw err;
+      // The combined signal keeps the reason of whichever source aborted first.
+      // Take the outcome from it, not from `err`: runtimes may replace the
+      // caller's reason with a generic AbortError (e.g. during a body read).
+      if (signal.reason === timeoutSignal?.reason) throw new TimeoutError(this.timeout);
+      throw signal.reason;
+    } finally {
+      combined?.dispose();
+    }
+  }
+
   private async request<T = unknown>(path: string, init?: RequestInit): Promise<T> {
-    const res = await this.requestRaw(path, init);
-    return res.json() as Promise<T>;
+    return this.send(path, init, (res) => res.json() as Promise<T>);
   }
 }
 
 // Re-export types and errors (types.ts is types-only, so this is exhaustive by construction)
 export type * from './types.js';
-export { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError } from './errors.js';
+export { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError, TimeoutError } from './errors.js';

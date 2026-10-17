@@ -47,3 +47,18 @@ export class NotFoundError extends ShieldCortexError {
     this.name = 'NotFoundError';
   }
 }
+
+/**
+ * The request did not complete within the client's `timeout`. The server may
+ * still have received or processed it, and response headers may already have
+ * arrived. `status` is always 0, an SDK sentinel rather than an HTTP status.
+ */
+export class TimeoutError extends ShieldCortexError {
+  public readonly timeout: number;
+
+  constructor(timeout: number) {
+    super(`Request timed out after ${timeout} ms`, 0, '');
+    this.name = 'TimeoutError';
+    this.timeout = timeout;
+  }
+}

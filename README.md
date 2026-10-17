@@ -37,10 +37,21 @@ if (!result.allowed) {
 |--------|------|---------|-------------|
 | `apiKey` | `string` | *required* | Your API key (`sc_live_...` or `sc_test_...`) |
 | `baseUrl` | `string` | `https://api.shieldcortex.ai` | API base URL |
+| `timeout` | `number` | `30000` | Per-request timeout in milliseconds, covering the response body too. `0` or `Infinity` disables it. Negative, fractional, `NaN`, non-number or values above `2147483647` throw a `RangeError` at construction. A timed-out request rejects with `TimeoutError`. |
+
+#### Per-call cancellation: `{ signal }`
+
+`scan`, `scanBatch` and `scanSkill` accept an optional trailing `RequestOptions` argument, `{ signal?: AbortSignal }`. The signal and the client `timeout` both apply, and whichever fires first wins. When your signal aborts first, the call rejects with the signal's abort reason as-is, even during the response-body read and even when the reason is falsy, such as `null` (an `AbortError` `DOMException` if you gave no reason). It is never turned into a `TimeoutError`.
+
+```typescript
+const controller = new AbortController();
+const result = await sc.scan({ content: 'user input here' }, { signal: controller.signal });
+await sc.scanBatch(items, { config: { mode: 'strict' } }, { signal: AbortSignal.timeout(5000) });
+```
 
 ### Scanning
 
-#### `scan(input): Promise<ScanResult>`
+#### `scan(input, { signal }?): Promise<ScanResult>`
 
 Scan a single piece of content through the 6-layer defence pipeline.
 
@@ -59,7 +70,7 @@ console.log(result.sensitivity.level);  // 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL
 console.log(result.auditId);            // Unique audit trail ID
 ```
 
-#### `scanBatch(items, options?): Promise<BatchResult>`
+#### `scanBatch(items, options?, { signal }?): Promise<BatchResult>`
 
 Scan up to 100 items in a single request.
 
@@ -192,7 +203,7 @@ two deliberate differences:
 The SDK throws typed errors you can catch:
 
 ```typescript
-import { ShieldCortex, AuthError, RateLimitError, ValidationError } from 'shieldcortex-sdk';
+import { ShieldCortex, AuthError, RateLimitError, ValidationError, TimeoutError } from 'shieldcortex-sdk';
 
 try {
   await sc.scan({ content: 'test' });
@@ -206,9 +217,14 @@ try {
   } else if (err instanceof ValidationError) {
     // 400 - Invalid request body
     console.error('Bad input:', err.body);
+  } else if (err instanceof TimeoutError) {
+    // Request did not complete within the client timeout (err.timeout ms); err.status is 0
+    console.error('Timed out after', err.timeout, 'ms');
   }
 }
 ```
+
+All of these extend `ShieldCortexError`. The SDK does not wrap caller cancellation in `ShieldCortexError`: a caller-signal abort rejects with the signal's abort reason, so its type is whatever that reason is.
 
 ## Defence Modes
 
