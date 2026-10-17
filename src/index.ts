@@ -86,6 +86,9 @@ const DEFAULT_BASE_URL = 'https://api.shieldcortex.ai';
 
 const seg = (value: string | number): string => {
   const segment = String(value);
+  if (segment === '') {
+    throw new TypeError('path parameter must not be empty');
+  }
   if (segment === '.' || segment === '..') {
     throw new TypeError("path parameter must not be '.' or '..'");
   }

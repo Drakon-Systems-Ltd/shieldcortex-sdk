@@ -11,7 +11,7 @@ Merged pull requests: #5 (fix(client): URL-encode path parameters, closes #3) an
 ### Fixed
 
 - Encode path parameters in API URLs so IDs containing slashes, question marks, or other special characters remain in one path segment.
-- Reject `.` and `..` path parameters before sending a request, so URL parsing cannot change the route.
+- Reject empty, `.` and `..` path parameters before sending a request, so URL parsing cannot change the route.
 
 ## 0.3.0 — source commit 2026-08-15
 
