@@ -47,3 +47,14 @@ export class NotFoundError extends ShieldCortexError {
     this.name = 'NotFoundError';
   }
 }
+
+/** The request did not complete within the client's `timeout`. `status` is 0: no HTTP response was received. */
+export class TimeoutError extends ShieldCortexError {
+  public readonly timeout: number;
+
+  constructor(timeout: number) {
+    super(`Request timed out after ${timeout} ms`, 0, '');
+    this.name = 'TimeoutError';
+    this.timeout = timeout;
+  }
+}

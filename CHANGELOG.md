@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- `timeout` client option, in milliseconds, default `30000` to match the Python SDK. It covers the whole request, response body included. `0` or `Infinity` disables it. Invalid values (negative, `NaN`, non-number, above `2147483647`) throw a `RangeError` at construction.
+- Per-call cancellation: `scan`, `scanBatch` and `scanSkill` accept an optional trailing `{ signal?: AbortSignal }` argument (exported type `RequestOptions`). A caller abort rejects with the signal's own abort reason.
+- `TimeoutError` (extends `ShieldCortexError`, `status` 0), with a `.timeout` property giving the timeout in milliseconds.
+
+### Changed
+
+- Requests now time out after 30 s by default and reject with `TimeoutError`. Before this change they waited indefinitely. Pass `timeout: 0` to keep the old behaviour.
+
 ### Fixed
 
 - Encode path parameters in API URLs so IDs containing slashes, question marks, or other special characters remain in one path segment.
