@@ -82,6 +82,7 @@ import type {
   RegenerateLicenseResponse,
 } from './types.js';
 import { ShieldCortexError, AuthError, RateLimitError, ValidationError, ForbiddenError, NotFoundError, TimeoutError } from './errors.js';
+import { parseRetryAfter } from './retry-after.js';
 
 const DEFAULT_BASE_URL = 'https://api.shieldcortex.ai';
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -139,13 +140,6 @@ const seg = (value: string | number): string => {
   }
   return encodeURIComponent(segment);
 };
-
-/**
- * Retry-After as seconds: delta-seconds as-is; anything else, including an
- * HTTP-date (not yet converted), null.
- */
-const parseRetryAfter = (value: string | null): number | null =>
-  value !== null && /^\d+$/.test(value) ? Number(value) : null;
 
 export class ShieldCortex {
   private readonly apiKey: string;
