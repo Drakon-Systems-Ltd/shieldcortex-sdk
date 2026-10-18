@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `RateLimitError.retryAfter` now converts an HTTP-date `Retry-After` to seconds (#14). A valid IMF-fixdate (`Sun, 06 Nov 1994 08:49:37 GMT`) gives the whole seconds from now until that time, rounded up and never negative; previously every date gave `null`. The date is checked strictly: exact case-sensitive format, real calendar date (month lengths, Gregorian leap years), hour 0-23, minute 0-59, second 0-60, and a weekday that matches the date. A leap second (`23:59:60`) counts as the start of the next UTC minute. Anything else, including the obsolete RFC 850 and asctime forms, still gives `null`. Delta-seconds are unchanged.
+
 ## 0.4.0 — 2026-10-17
 
 Client feature release: a request timeout, per-call cancellation and a `TimeoutError` class, plus a `RateLimitError.retryAfter` fix and a docs-vs-code pass. No Cloud API or dependency changes. Minor rather than patch because the shipped change is typed `feat`. **Behaviour change:** requests now time out after 30 s by default (see Changed). `package.json` now declares `engines` `node >=20`, the version CI tests.

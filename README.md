@@ -237,7 +237,7 @@ Every exported error class, and when the SDK throws it:
 | `AuthError` | `401` | Invalid or expired API key. |
 | `ForbiddenError` | `403` | The key lacks the scope or plan for the endpoint. |
 | `NotFoundError` | `404` | The resource does not exist. |
-| `RateLimitError` | `429` | Too many requests. `retryAfter` is `number \| null`: the `Retry-After` header in seconds when it is given as delta-seconds; `null` if the header is absent or anything else, including an HTTP-date (not yet converted). |
+| `RateLimitError` | `429` | Too many requests. `retryAfter` is `number \| null`: the `Retry-After` header in seconds. Delta-seconds are used as-is; an IMF-fixdate HTTP-date (`Sun, 06 Nov 1994 08:49:37 GMT`) becomes the whole seconds from now until that time, rounded up and `0` if it is in the past. The date must be a real calendar date with a matching weekday, and a leap second (`:60`) counts as the start of the next minute. `null` if the header is absent or anything else, including an impossible date and the obsolete RFC 850 and asctime date forms. |
 | `TimeoutError` | `0` | The request did not complete within the client `timeout` (`timeout` property, in ms). `0` is an SDK sentinel, not an HTTP status. |
 
 Every error has `status` and `body` (the raw response text; empty for `TimeoutError`). Invalid arguments throw a built-in `TypeError` (empty, `.` or `..` path parameters) or `RangeError` (invalid `timeout`) before any request is sent.
