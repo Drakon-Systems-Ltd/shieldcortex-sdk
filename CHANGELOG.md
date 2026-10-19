@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## 0.4.1 — 2026-10-19
+
+Client-side fix release. No Cloud API, type or dependency changes.
+
+Merged pull requests: #16 (fix: convert HTTP-date Retry-After to seconds, closes #14).
+
 ### Fixed
 
 - `RateLimitError.retryAfter` now converts an HTTP-date `Retry-After` to seconds (#14). A valid IMF-fixdate (`Sun, 06 Nov 1994 08:49:37 GMT`) gives the whole seconds from now until that time, rounded up and never negative; previously every date gave `null`. The date is checked strictly: exact case-sensitive format, real calendar date (month lengths, Gregorian leap years), hour 0-23, minute 0-59, second 0-60, and a weekday that matches the date. A leap second (`23:59:60`) counts as the start of the next UTC minute. Anything else, including the obsolete RFC 850 and asctime forms, still gives `null`. Delta-seconds are unchanged.
