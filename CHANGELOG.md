@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Dev tooling only: refreshed `package-lock.json` so `npm audit` reports no advisories. Vitest `4.1.10` → `4.1.12` (with its `@vitest/*` packages), Vite `8.2.1` → `8.2.4`, Rolldown `1.2.3` → `1.2.4` (with its platform bindings and `@oxc-project/types` `0.144.0`), `source-map-js` `1.2.1` → `1.2.2`. No change to `package.json`, the published SDK, its runtime dependencies (none) or the `node >=20` requirement.
+
 ## 0.4.1 — 2026-10-19
 
 Client-side fix release. No Cloud API, type or dependency changes.
